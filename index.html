@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transaction Extractor</title>
+    <link rel="manifest" href="manifest.json">
     <style>
         body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f1f3f5; color: #333; }
         .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
@@ -14,11 +15,12 @@
         #upload-btn:disabled { background: #ccc; }
         
         #results-area { display: none; text-align: left; margin-top: 15px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; position: relative; }
-        #copy-area { padding: 15px; white-space: pre-wrap; font-family: monospace; font-size: 0.95rem; line-height: 1.5; color: #212529; cursor: pointer; }
+        #copy-area { padding: 15px; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; line-height: 1.5; color: #212529; cursor: pointer; }
         .copy-hint { font-size: 0.7rem; color: #007bff; text-align: center; padding-bottom: 10px; font-weight: bold; }
         
-        #status { font-size: 0.85rem; color: #666; margin: 10px 0; }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 20px; height: 20px; display: inline-block; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 8px; visibility: hidden; }
+        #status-container { display: flex; align-items: center; justify-content: center; margin: 10px 0; }
+        #status { font-size: 0.85rem; color: #666; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 16px; height: 16px; display: none; animation: spin 1s linear infinite; margin-right: 8px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -37,12 +39,21 @@
 
     <div id="results-area">
         <div id="copy-area"></div>
-        <div class="copy-hint">Tap above to Copy</div>
+        <div class="copy-hint">Tap text to Copy All</div>
     </div>
 </div>
 
 <script>
-    const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec";
+    // 1. SERVICE WORKER REGISTRATION
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW Registered'))
+                .catch(err => console.log('SW Registration Failed', err));
+        });
+    }
+
+    const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"; 
     const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
     const status = document.getElementById('status');
@@ -52,7 +63,7 @@
     
     let sharedBlob = null;
 
-    // Load Image from PWA Cache
+    // 2. HANDLE SHARED IMAGE FROM CACHE
     window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
@@ -62,8 +73,10 @@
                 sharedBlob = await response.blob();
                 preview.src = URL.createObjectURL(sharedBlob);
                 preview.style.display = 'block';
-                status.innerText = "Image loaded successfully.";
+                status.innerText = "Image received. Tap Extract.";
                 uploadBtn.disabled = false;
+                // Clean up cache after loading
+                await cache.delete('shared-image');
             }
         }
     });
@@ -75,11 +88,12 @@
         reader.readAsDataURL(blob);
     });
 
+    // 3. UPLOAD AND FORMAT DATA
     uploadBtn.onclick = async () => {
         if (!sharedBlob) return;
         
-        loader.style.visibility = "visible";
-        status.innerText = "Analyzing Transaction...";
+        loader.style.display = "inline-block";
+        status.innerText = "Analyzing with Groq AI...";
         uploadBtn.disabled = true;
         resultsArea.style.display = "none";
 
@@ -96,9 +110,8 @@
                 const d = result.data;
                 const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
                 
-                // Construct requested format
-                const formattedText = 
-`📅 Date: ${d.date}
+                // YOUR REQUESTED FORMAT
+                const formattedText = `📅 Date: ${d.date}
 📱 App: ${d.app}
 👤 Name: ${d.name}
 🆔 ID: ${d.txnId}
@@ -112,29 +125,27 @@
 
                 copyArea.innerText = formattedText;
                 resultsArea.style.display = "block";
-                status.innerText = "Successfully extracted!";
+                status.innerText = "Extract Success!";
             } else {
-                status.innerText = "Extraction failed. Try again.";
+                status.innerText = "Error: " + result.data;
             }
         } catch (e) {
+            status.innerText = "Network error. Check console.";
             console.error(e);
-            status.innerText = "Saved to Sheet (Network UI error)";
         } finally {
-            loader.style.visibility = "hidden";
+            loader.style.display = "none";
             uploadBtn.disabled = false;
         }
     };
 
-    // Single Tap Copy Functionality
+    // 4. ONE-TAP COPY
     copyArea.onclick = () => {
         navigator.clipboard.writeText(copyArea.innerText).then(() => {
             const originalText = copyArea.innerText;
-            const originalBg = copyArea.style.background;
-            
-            copyArea.innerText = "\n✅ Copied to Clipboard!";
+            copyArea.innerText = "✅ COPIED TO CLIPBOARD!";
             setTimeout(() => {
                 copyArea.innerText = originalText;
-            }, 1000);
+            }, 1200);
         });
     };
 </script>
