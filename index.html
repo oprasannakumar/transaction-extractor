@@ -4,65 +4,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transaction Extractor</title>
-    <link rel="manifest" href="manifest.json">
     <style>
         body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f8f9fa; color: #333; }
         .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); width: 100%; max-width: 400px; text-align: center; }
         #preview { width: 100%; border-radius: 12px; margin: 20px 0; display: none; border: 1px solid #eee; }
-        select, button { width: 100%; padding: 14px; margin: 12px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 1rem; outline: none; }
-        select { background-color: #fff; }
-        button { background: #007bff; color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        button { width: 100%; padding: 14px; margin: 12px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 1rem; outline: none; background: #007bff; color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; }
         button:hover { background: #0056b3; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         #status { font-size: 0.9rem; color: #666; margin-top: 10px; }
+        #results-area { display: none; text-align: left; margin-top: 20px; padding: 15px; background: #f0f7ff; border-radius: 12px; border: 1px solid #d0e3ff; }
+        pre { white-space: pre-wrap; font-size: 0.85rem; font-family: monospace; overflow-x: auto; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2 style="margin-top:0">Share to Extractor</h2>
+    <h2 style="margin-top:0">Transaction Extractor</h2>
     <img id="preview" src="" alt="Shared Image Preview">
     
     <div id="selection-area">
-        <label for="model" style="display:block; text-align:left; margin-bottom:5px; font-size:0.85rem; font-weight:bold;">CHOOSE AI MODEL</label>
-        <select id="model">
-            <option value="">-- Select Model --</option>
-            <option value="gemini">Gemini 2.5 Flash</option>
-            <option value="Groq">Groq llama-4-scout</option>
-        </select>
-
-        <button id="upload-btn" disabled>Confirm & Upload</button>
+        <button id="upload-btn" disabled>Extract & Save to Sheet</button>
     </div>
-    <div id="results-area" style="display:none; text-align:left; margin-top:20px; padding:15px; background:#f0f7ff; border-radius:12px; border:1px solid #d0e3ff;">
-    <h3 style="margin-top:0; font-size:1rem;">Extracted Data</h3>
-    <pre id="json-output" style="white-space: pre-wrap; font-size:0.85rem; font-family: monospace;"></pre>
-</div>
+
+    <div id="results-area">
+        <h3 style="margin-top:0; font-size:1rem;">Extracted Data</h3>
+        <pre id="json-output"></pre>
+    </div>
     <p id="status">Waiting for image share...</p>
 </div>
 
 <script>
-    const repoPath = '/transaction-extractor/';
+    const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec";
     const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
-    const modelSelect = document.getElementById('model');
     const status = document.getElementById('status');
+    const resultsArea = document.getElementById('results-area');
+    const jsonOutput = document.getElementById('json-output');
     let sharedBlob = null;
 
-    // 1. Register Service Worker with specific scope
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch(err => console.error("SW failed:", err));
+        });
+    }
 
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js', { scope: '/transaction-extractor/' })
-            .then(reg => {
-                console.log("Service Worker registered with scope:", reg.scope);
-            })
-            .catch(err => {
-                console.error("Service Worker registration failed:", err);
-            });
-    });
-}
-
-    // 2. Retrieve Shared Image from Cache on Page Load
+    // Load shared image from Cache
     window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
@@ -72,63 +59,57 @@ if ('serviceWorker' in navigator) {
                 sharedBlob = await response.blob();
                 preview.src = URL.createObjectURL(sharedBlob);
                 preview.style.display = 'block';
-                status.innerText = "Image received! Select a model.";
+                status.innerText = "Image received. Ready to extract.";
+                uploadBtn.disabled = false;
                 await cache.delete('shared-image');
             }
         }
     });
 
-    modelSelect.onchange = () => uploadBtn.disabled = !modelSelect.value;
+    // Convert Blob to Base64 (Required by your Google Script)
+    const blobToBase64 = blob => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
 
-  uploadBtn.onclick = async () => {
-    if (!sharedBlob) return;
-    
-    const selectedModel = modelSelect.value;
-    const resultsArea = document.getElementById('results-area');
-    const jsonOutput = document.getElementById('json-output');
-    
-    status.innerText = "Processing with " + selectedModel + "...";
-    uploadBtn.disabled = true;
+    uploadBtn.onclick = async () => {
+        if (!sharedBlob) return;
+        
+        status.innerText = "Analyzing with Groq AI...";
+        uploadBtn.disabled = true;
+        resultsArea.style.display = 'none';
 
-    const formData = new FormData();
-    formData.append('image', sharedBlob);
-    formData.append('model', selectedModel);
+        try {
+            const base64Image = await blobToBase64(sharedBlob);
+            
+            // Construct the payload your script expects
+            const payload = {
+                image: base64Image
+            };
 
-    // Endpoint Mapping
-    const endpoints = {
-        'gemini': 'https://your-gemini-backend.com/process',
-        'Groq': 'https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec'
-    };
+            const res = await fetch(GAS_ENDPOINT, {
+                method: 'POST',
+                mode: 'no-cors', // Google Scripts often require no-cors for simple redirects
+                body: JSON.stringify(payload)
+            });
 
-    try {
-        const res = await fetch(endpoints[selectedModel], {
-            method: 'POST',
-            body: formData
-        });
-
-        if (res.ok) {
-            // 1. Receive the data from backend
-            const data = await res.json(); 
-
-            // 2. Display the data in the UI
-            status.innerText = "Success! Data extracted.";
+            // Note: Since Google Scripts use redirects, 'no-cors' mode 
+            // won't let us read the JSON response directly in the browser.
+            // If you need to see the result, you must use a CORS proxy or 
+            // handle the redirect in the script (return JSON properly).
+            
+            status.innerText = "Check your Google Sheet! Data sent successfully.";
             uploadBtn.innerText = "Process Another";
             uploadBtn.disabled = false;
-            
-            resultsArea.style.display = 'block';
-            jsonOutput.innerText = JSON.stringify(data, null, 2);
-            
-            // Optional: Auto-scroll to results
-            resultsArea.scrollIntoView({ behavior: 'smooth' });
-        } else {
-            status.innerText = "Error: " + res.statusText;
+
+        } catch (e) {
+            console.error(e);
+            status.innerText = "Error: " + e.message;
             uploadBtn.disabled = false;
         }
-    } catch (e) {
-        status.innerText = "Connection error. Check your API endpoints.";
-        uploadBtn.disabled = false;
-    }
-};
+    };
 </script>
 </body>
 </html>
