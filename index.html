@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Txn Vault | Neon Pro</title>
+    <title>Txn Vault | Batch Core</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        /* ... (Keep all the futuristic CSS from the previous version) ... */
         :root {
             --neon-blue: #00d2ff; --neon-purple: #9d50bb; --neon-green: #39ff14;
             --neon-red: #ff3131; --bg-dark: #0f172a; --glass-bg: rgba(255, 255, 255, 0.05);
@@ -16,7 +15,7 @@
         body { 
             font-family: 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; 
             align-items: center; padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
-            margin: 0; min-height: 85vh;
+            margin: 0; min-height: 100vh;
         }
         .card { 
             background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -33,37 +32,37 @@
         .scan-line {
             position: absolute; top: 0; left: 0; width: 100%; height: 4px;
             background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue);
-            display: none; animation: scan 2s linear infinite; z-index: 5;
+            animation: scan 2s linear infinite; z-index: 5;
         }
         @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
         #status-container { display: flex; align-items: center; justify-content: center; margin: 20px 0; }
         #status { font-size: 0.8rem; color: #94a3b8; font-family: 'Courier New', monospace; text-transform: uppercase; }
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 80%; max-width: 300px; }
-        .btn-clear { background: transparent; color: #f87171; border: 1px solid #f87171; padding: 4px 10px; border-radius: 6px; font-size: 0.65rem; cursor: pointer; }
+        
+        /* HEADER RESTRUCTURE */
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 100%; max-width: 450px; }
+        .btn-clear { background: transparent; color: #f87171; border: 1px solid #f87171; padding: 4px 12px; border-radius: 6px; font-size: 0.65rem; cursor: pointer; margin-left: auto; }
+        
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; }
         .txn-item { 
             background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); 
             border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
             padding: 12px; cursor: pointer; position: relative;
         }
-        .txn-item.in { border-left: 4px solid var(--neon-green); box-shadow: inset 10px 0 15px -10px rgba(57, 255, 20, 0.2); }
-        .txn-item.out { border-left: 4px solid var(--neon-red); box-shadow: inset 10px 0 15px -10px rgba(255, 49, 49, 0.2); }
+        .txn-item.in { border-left: 4px solid var(--neon-green); }
+        .txn-item.out { border-left: 4px solid var(--neon-red); }
         .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; }
-        .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; overflow: hidden; text-overflow: ellipsis; }
-        .btn-delete { color: #64748b; font-size: 1.2rem; padding: 10px; cursor: pointer; transition: 0.2s; }
-        .btn-delete:hover { color: var(--neon-red); }
+        .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; overflow: hidden; }
+        .btn-delete { color: #64748b; font-size: 1.2rem; padding: 10px; cursor: pointer; }
+        
         #modal { 
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; justify-content: flex-start;
         }
-        #modal-img { 
-            width: auto; max-width: 90%; max-height: 45vh; margin-top: 60px; border-radius: 16px;
-            border: 2px solid var(--neon-blue); display: block;
-        }
+        #modal-img { width: auto; max-width: 90%; max-height: 45vh; margin-top: 60px; border-radius: 16px; border: 2px solid var(--neon-blue); }
         #modal-data { 
             padding: 25px; font-family: 'Courier New', monospace; font-size: 0.9rem; color: var(--neon-blue);
             background: rgba(255,255,255,0.03); margin: 20px; border-radius: 12px;
-            cursor: pointer; width: 80%; max-width: 300px; border: 1px solid var(--glass-border);
+            cursor: pointer; width: 85%; max-width: 400px; border: 1px solid var(--glass-border);
         }
         .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; z-index: 1001; }
     </style>
@@ -95,13 +94,8 @@
 </div>
 
 <script>
-    // 1. SERVICE WORKER REGISTRATION (RE-ADDED)
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('Cyber Core Active'))
-                .catch(err => console.error('Core Link Failure', err));
-        });
+        window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
     }
 
     const DB_NAME = "TxnVaultDB";
@@ -117,7 +111,6 @@
         req.onsuccess = e => res(e.target.result);
     });
 
-    // Housekeeping for 12:00 AM IST Wipe
     async function performHousekeeping() {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
@@ -140,15 +133,6 @@
         renderHistory();
     }
 
-    async function deleteTxn(id, e) {
-        e.stopPropagation();
-        if(!confirm("Purge selected log?")) return;
-        const db = await initDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).delete(id);
-        renderHistory();
-    }
-
     async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
@@ -157,15 +141,10 @@
         req.onsuccess = () => {
             req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
-                const dirClass = item.direction === "IN" ? "in" : "out";
-                div.className = `txn-item ${dirClass}`;
+                div.className = `txn-item ${item.direction === "IN" ? "in" : "out"}`;
                 const url = URL.createObjectURL(item.blob);
                 div.onclick = () => openModal(url, item.text);
-                div.innerHTML = `
-                    <img src="${url}" class="txn-thumb">
-                    <div class="txn-brief">${item.text.split('\n')[0]}<br><span style="font-size:0.7rem; color:#64748b">${item.text.split('\n')[4]}</span></div>
-                    <div class="btn-delete" onclick="deleteTxn(${item.id}, event)">&times;</div>
-                `;
+                div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.text.split('\n')[0]}<br><span style="font-size:0.7rem; color:#64748b">${item.text.split('\n')[4]}</span></div><div class="btn-delete" onclick="deleteTxn(${item.id}, event)">&times;</div>`;
                 list.appendChild(div);
             });
         };
@@ -183,41 +162,47 @@
         event.stopPropagation();
         navigator.clipboard.writeText(document.getElementById('modal-data').innerText);
         const status = document.getElementById('status');
-        status.innerText = "LINK COPIED";
-        setTimeout(() => status.innerText = "System Ready", 2000);
+        status.innerText = "COPIED TO CLIPBOARD";
+        setTimeout(() => status.innerText = "System Ready", 1500);
     }
 
-    async function processExtraction(blob) {
-        if (!blob.type.startsWith('image/')) {
-            document.getElementById('status').innerText = "ERROR: INVALID PROTOCOL";
-            return;
-        }
-        const scanBar = document.getElementById('scan-bar');
+    // --- BATCH PROCESSING LOGIC ---
+    async function processQueue(blobs) {
         const status = document.getElementById('status');
-        scanBar.style.display = "block";
+        const preview = document.getElementById('preview');
+        const pCont = document.getElementById('p-cont');
         
-        try {
-            const base64 = await new Promise(res => {
-                const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
-            });
-            for (let model of ['gemini', 'groq']) {
-                status.innerText = `DECRYPTING VIA ${model.toUpperCase()}...`;
-                const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
-                const res = await resp.json();
-                if (res.status === "success") {
-                    const d = res.data;
-                    const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
-                    const formatted = `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${dirEmoji}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`;
+        for (let i = 0; i < blobs.length; i++) {
+            const blob = blobs[i];
+            status.innerText = `PROCESSING ${i + 1}/${blobs.length}...`;
+            
+            pCont.style.display = 'block';
+            preview.src = URL.createObjectURL(blob);
+
+            try {
+                const base64 = await new Promise(res => {
+                    const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
+                });
+
+                let success = false;
+                for (let model of ['gemini', 'groq']) {
+                    status.innerText = `[${i+1}/${blobs.length}] ${model.toUpperCase()} EXTRACTING...`;
+                    const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
+                    const res = await resp.json();
                     
-                    await saveTxn(blob, formatted, d.direction);
-                    status.innerText = "DECRYPTION SUCCESS";
-                    navigator.clipboard.writeText(formatted);
-                    scanBar.style.display = "none";
-                    return;
+                    if (res.status === "success") {
+                        const d = res.data;
+                        const formatted = `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`;
+                        await saveTxn(blob, formatted, d.direction);
+                        success = true;
+                        break;
+                    }
                 }
-            }
-        } catch (e) { status.innerText = "CORE LINK FAILURE"; }
-        scanBar.style.display = "none";
+                if (!success) status.innerText = `FAILED ON ITEM ${i+1}`;
+            } catch (e) { status.innerText = "CORE ERROR"; }
+        }
+        status.innerText = "BATCH COMPLETE";
+        setTimeout(() => pCont.style.display = 'none', 3000);
     }
 
     window.addEventListener('load', async () => {
@@ -225,23 +210,19 @@
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
             const cache = await caches.open('shared-data');
-            const response = await cache.match('shared-image');
-            if (response) {
-                const blob = await response.blob();
-                document.getElementById('p-cont').style.display = 'block';
-                document.getElementById('preview').src = URL.createObjectURL(blob);
-                await cache.delete('shared-image');
-                processExtraction(blob);
+            const keys = await cache.keys();
+            const blobs = [];
+            for (let key of keys) {
+                const resp = await cache.match(key);
+                blobs.push(await resp.blob());
+                await cache.delete(key);
             }
+            if (blobs.length > 0) processQueue(blobs);
         }
     });
 
-    async function clearHistory() {
-        if(!confirm("Purge all logs?")) return;
-        const db = await initDB();
-        db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
-        renderHistory();
-    }
+    async function deleteTxn(id, e) { e.stopPropagation(); if(confirm("Delete?")) { const db = await initDB(); db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id); renderHistory(); } }
+    async function clearHistory() { if(confirm("Purge all?")) { const db = await initDB(); db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear(); renderHistory(); } }
 </script>
 </body>
 </html>
