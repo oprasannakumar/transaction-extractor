@@ -3,50 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Share Target</title>
+    <title>Transaction Extractor</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f0f2f5; }
-        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        #preview { width: 100%; border-radius: 10px; margin: 15px 0; display: none; }
-        select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 1rem; }
-        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #aaa; }
+        body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f8f9fa; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); width: 100%; max-width: 400px; text-align: center; }
+        #preview { width: 100%; border-radius: 12px; margin: 20px 0; display: none; border: 1px solid #eee; }
+        select, button { width: 100%; padding: 14px; margin: 12px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 1rem; outline: none; }
+        select { background-color: #fff; }
+        button { background: #007bff; color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #status { font-size: 0.9rem; color: #666; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Share Target App</h2>
-    <img id="preview" src="" alt="Preview">
+    <h2 style="margin-top:0">Share to Extractor</h2>
+    <img id="preview" src="" alt="Shared Image Preview">
     
-    <label for="model">Select AI Model:</label>
-    <select id="model">
-        <option value="">-- Choose Model --</option>
-        <option value="gemini-1-5">Gemini 2.5 Flash</option>
-        <option value="claude-3-5">Groq llama-4-scout</option>
-    </select>
+    <div id="selection-area">
+        <label for="model" style="display:block; text-align:left; margin-bottom:5px; font-size:0.85rem; font-weight:bold;">CHOOSE AI MODEL</label>
+        <select id="model">
+            <option value="">-- Select Model --</option>
+            <option value="gemini-1-5">Gemini 2.5 Flash</option>
+            <option value="claude-3-5">Groq llama-4-scout</option>
+        </select>
 
-    <button id="upload-btn" disabled>Upload to Backend</button>
-    <p id="status"></p>
+        <button id="upload-btn" disabled>Confirm & Upload</button>
+    </div>
+    <p id="status">Waiting for image share...</p>
 </div>
 
 <script>
-    const repoPath = '/REPLACE_WITH_YOUR_REPO_NAME/'; // e.g., '/my-pwa-repo/'
+    const repoPath = '/transaction-extractor/';
     const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
     const modelSelect = document.getElementById('model');
     const status = document.getElementById('status');
     let sharedBlob = null;
 
-    // 1. Register Service Worker
+    // 1. Register Service Worker with specific scope
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
-            .then(() => console.log("SW Registered"))
+        navigator.serviceWorker.register('sw.js', { scope: repoPath })
+            .then(() => console.log("SW Registered for " + repoPath))
             .catch(err => console.error("SW Registration failed:", err));
     }
 
-    // 2. Retrieve Shared Image from Cache
+    // 2. Retrieve Shared Image from Cache on Page Load
     window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
@@ -56,31 +61,41 @@
                 sharedBlob = await response.blob();
                 preview.src = URL.createObjectURL(sharedBlob);
                 preview.style.display = 'block';
-                status.innerText = "Image received. Ready for selection.";
-                await cache.delete('shared-image'); // Cleanup
+                status.innerText = "Image received! Select a model.";
+                await cache.delete('shared-image');
             }
         }
     });
 
     modelSelect.onchange = () => uploadBtn.disabled = !modelSelect.value;
 
-    // 3. Final Upload Logic
+    // 3. Backend Upload Logic
     uploadBtn.onclick = async () => {
-        status.innerText = "Uploading...";
+        if (!sharedBlob) return;
+        
+        status.innerText = "Uploading to " + modelSelect.value + "...";
+        uploadBtn.disabled = true;
+
         const formData = new FormData();
         formData.append('image', sharedBlob);
         formData.append('model', modelSelect.value);
 
         try {
-            // Replace with your actual backend URL
-            const res = await fetch('https://your-api-backend.com/upload', {
+            // Replace with your actual transaction processing API URL
+            const res = await fetch('https://your-api-backend.com/process', {
                 method: 'POST',
                 body: formData
             });
-            if (res.ok) status.innerText = "Success!";
-            else status.innerText = "Upload failed.";
+            if (res.ok) {
+                status.innerText = "Success! Data extracted.";
+                uploadBtn.innerText = "Done";
+            } else {
+                status.innerText = "Server error. Please try again.";
+                uploadBtn.disabled = false;
+            }
         } catch (e) {
-            status.innerText = "Error connecting to backend.";
+            status.innerText = "Connection error. Check backend URL.";
+            uploadBtn.disabled = false;
         }
     };
 </script>
