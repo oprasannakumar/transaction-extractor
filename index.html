@@ -6,143 +6,83 @@
     <title>Image Share Target</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            background-color: #f4f7f6;
-        }
-        .card {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
-        }
-        #preview {
-            max-width: 100%;
-            max-height: 300px;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            display: none;
-        }
-        select, button {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border-radius: 6px;
-            border: 1px solid #ddd;
-            font-size: 1rem;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        button:disabled {
-            background-color: #ccc;
-        }
-        .status {
-            margin-top: 10px;
-            font-size: 0.9rem;
-            color: #666;
-        }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        #preview { width: 100%; border-radius: 10px; margin: 15px 0; display: none; }
+        select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ccc; font-size: 1rem; }
+        button { background: #007bff; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #aaa; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Share Image</h2>
+    <h2>Share Target App</h2>
+    <img id="preview" src="" alt="Preview">
     
-    <img id="preview" src="" alt="Image Preview">
-    
-    <div id="setup-area">
-        <label for="model-select">Choose AI Model:</label>
-        <select id="model-select">
-            <option value="">-- Select a Model --</option>
-            <option value="gpt-4o">Groq llama-4-scout</option>
-            <option value="gemini-1-5">Gemini 2.5 Flash</option>
-            
-        </select>
+    <label for="model">Select AI Model:</label>
+    <select id="model">
+        <option value="">-- Choose Model --</option>
+        <option value="gemini-1-5">Gemini 2.5 Flash</option>
+        <option value="claude-3-5">Groq llama-4-scout</option>
+    </select>
 
-        <button id="upload-btn" disabled>Upload to Backend</button>
-    </div>
-
-    <p id="status-msg" class="status">Waiting for image...</p>
+    <button id="upload-btn" disabled>Upload to Backend</button>
+    <p id="status"></p>
 </div>
 
 <script>
+    const repoPath = '/REPLACE_WITH_YOUR_REPO_NAME/'; // e.g., '/my-pwa-repo/'
     const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
-    const modelSelect = document.getElementById('model-select');
-    const statusMsg = document.getElementById('status-msg');
-    let sharedFile = null;
+    const modelSelect = document.getElementById('model');
+    const status = document.getElementById('status');
+    let sharedBlob = null;
 
-    // 1. Handle incoming data from the Share Target
-    window.addEventListener('DOMContentLoaded', () => {
-        const parsedUrl = new URL(window.location);
-        
-        // When using 'method: POST' in manifest, data usually comes via Service Worker.
-        // For simplicity in this demo, we check if files were passed via the search params
-        // (Note: Advanced implementation requires Service Worker 'fetch' event handling)
-        
-        // Check if there is an image in the session (stored by service worker)
-        const imageBlob = sessionStorage.getItem('shared-image');
-        if (imageBlob) {
-            displayImage(imageBlob);
+    // 1. Register Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+            .then(() => console.log("SW Registered"))
+            .catch(err => console.error("SW Registration failed:", err));
+    }
+
+    // 2. Retrieve Shared Image from Cache
+    window.addEventListener('load', async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('shared')) {
+            const cache = await caches.open('shared-data');
+            const response = await cache.match('shared-image');
+            if (response) {
+                sharedBlob = await response.blob();
+                preview.src = URL.createObjectURL(sharedBlob);
+                preview.style.display = 'block';
+                status.innerText = "Image received. Ready for selection.";
+                await cache.delete('shared-image'); // Cleanup
+            }
         }
     });
 
-    function displayImage(blob) {
-        sharedFile = blob;
-        preview.src = URL.createObjectURL(blob);
-        preview.style.display = 'block';
-        statusMsg.innerText = "Image received. Please select a model.";
-    }
+    modelSelect.onchange = () => uploadBtn.disabled = !modelSelect.value;
 
-    // Enable button only when model is selected
-    modelSelect.addEventListener('change', () => {
-        uploadBtn.disabled = !modelSelect.value;
-    });
-
-    // 2. Upload Logic
-    uploadBtn.addEventListener('click', async () => {
-        const model = modelSelect.value;
-        if (!model) return;
-
+    // 3. Final Upload Logic
+    uploadBtn.onclick = async () => {
+        status.innerText = "Uploading...";
         const formData = new FormData();
-        formData.append('image', sharedFile);
-        formData.append('model', model);
+        formData.append('image', sharedBlob);
+        formData.append('model', modelSelect.value);
 
         try {
-            uploadBtn.innerText = "Uploading...";
-            uploadBtn.disabled = true;
-
             // Replace with your actual backend URL
-            const response = await fetch('/upload-endpoint', {
+            const res = await fetch('https://your-api-backend.com/upload', {
                 method: 'POST',
                 body: formData
             });
-
-            if (response.ok) {
-                statusMsg.innerText = "Success! Image sent to " + model;
-                uploadBtn.innerText = "Done";
-            } else {
-                throw new Error("Upload failed");
-            }
-        } catch (err) {
-            statusMsg.innerText = "Error: " + err.message;
-            uploadBtn.innerText = "Try Again";
-            uploadBtn.disabled = false;
+            if (res.ok) status.innerText = "Success!";
+            else status.innerText = "Upload failed.";
+        } catch (e) {
+            status.innerText = "Error connecting to backend.";
         }
-    });
+    };
 </script>
-
 </body>
 </html>
