@@ -8,53 +8,96 @@
     <style>
         body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f1f3f5; color: #333; }
         .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; transition: opacity 0.3s; }
+        #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; }
         
-        #results-area { display: none; text-align: left; margin-top: 15px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; position: relative; animation: slideUp 0.4s ease-out; }
+        button { width: 100%; padding: 16px; margin: 10px 0; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
+        #upload-btn { background: #007bff; color: white; }
+        #upload-btn:disabled { background: #ccc; }
+        
+        #results-area { display: none; text-align: left; margin-top: 15px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; position: relative; }
         #copy-area { padding: 15px; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; line-height: 1.5; color: #212529; cursor: pointer; }
-        .copy-hint { font-size: 0.75rem; color: #007bff; text-align: center; padding-bottom: 10px; font-weight: bold; }
+        .copy-hint { font-size: 0.7rem; color: #007bff; text-align: center; padding-bottom: 10px; font-weight: bold; }
         
-        #status-container { display: flex; align-items: center; justify-content: center; margin: 10px 0; padding: 10px; border-radius: 10px; }
-        #status { font-size: 0.9rem; font-weight: 500; color: #444; }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 18px; height: 18px; display: none; animation: spin 1s linear infinite; margin-right: 10px; }
-        
+        #status-container { display: flex; align-items: center; justify-content: center; margin: 10px 0; }
+        #status { font-size: 0.85rem; color: #666; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 16px; height: 16px; display: none; animation: spin 1s linear infinite; margin-right: 8px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .processing { background: #e7f1ff; }
+        
+        select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 12px; border: 1px solid #ccc; background: white; font-size: 0.9rem; }
+        
+        .dest-btn { margin-top: 5px; font-size: 0.9rem; }
+        #monthly-btn { background: #28a745; color: white; }
+        #loan-btn { background: #6f42c1; color: white; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h3 style="margin: 0 0 15px 0;">Transaction Extractor</h3>
-    
     <img id="preview" src="" alt="Preview">
     
     <div id="status-container">
         <div id="loader" class="loader"></div>
-        <span id="status">Ready...</span>
+        <span id="status">Waiting for shared image...</span>
     </div>
+
+    <select id="model-select">
+        <option value="gemini">Gemini (Primary)</option>
+        <option value="groq">Groq (Secondary)</option>
+    </select>
+
+    <button id="upload-btn" disabled>EXTRACT DATA</button>
 
     <div id="results-area">
         <div id="copy-area"></div>
-        <div class="copy-hint">Tap to Copy Data</div>
+        <div class="copy-hint">Data Copied! Tap to copy again.</div>
+    </div>
+
+    <div id="post-action-area" style="display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+        <p style="font-size: 0.8rem; color: #666; margin-bottom: 8px;">Open destination app:</p>
+        <button id="monthly-btn" class="dest-btn">Monthly Transaction</button>
+        <button id="loan-btn" class="dest-btn">Loan Transfer</button>
     </div>
 </div>
 
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').catch(console.error);
+            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error', err));
         });
     }
 
-    const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"; 
+    const endpoints = {
+        gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
+        groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
+    };
+
     const preview = document.getElementById('preview');
+    const uploadBtn = document.getElementById('upload-btn');
     const status = document.getElementById('status');
-    const statusContainer = document.getElementById('status-container');
     const loader = document.getElementById('loader');
     const resultsArea = document.getElementById('results-area');
     const copyArea = document.getElementById('copy-area');
+    const modelSelect = document.getElementById('model-select');
+    const postActionArea = document.getElementById('post-action-area');
+    
+    let sharedBlob = null;
+
+    window.addEventListener('load', async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('shared')) {
+            const cache = await caches.open('shared-data');
+            const response = await cache.match('shared-image');
+            if (response) {
+                sharedBlob = await response.blob();
+                preview.src = URL.createObjectURL(sharedBlob);
+                preview.style.display = 'block';
+                status.innerText = "Image received. Tap Extract.";
+                uploadBtn.disabled = false;
+                await cache.delete('shared-image');
+            }
+        }
+    });
 
     const blobToBase64 = blob => new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -63,84 +106,69 @@
         reader.readAsDataURL(blob);
     });
 
-    // Main extraction logic
-    async function startExtraction(blob) {
+    uploadBtn.onclick = async () => {
+        if (!sharedBlob) return;
         loader.style.display = "inline-block";
-        statusContainer.classList.add('processing');
-        status.innerText = "Extracting with AI...";
+        uploadBtn.disabled = true;
         resultsArea.style.display = "none";
-        preview.style.opacity = "0.6";
-
+        postActionArea.style.display = "none";
+        
         try {
-            const base64Image = await blobToBase64(blob);
-            const response = await fetch(GAS_ENDPOINT, {
-                method: 'POST',
-                body: JSON.stringify({ image: base64Image })
-            });
+            const base64Image = await blobToBase64(sharedBlob);
+            const selected = modelSelect.value;
+            const alternative = selected === 'gemini' ? 'groq' : 'gemini';
+            const attemptOrder = [selected, alternative];
 
-            const result = await response.json();
+            for (let modelKey of attemptOrder) {
+                try {
+                    status.innerText = `Analyzing with ${modelKey.toUpperCase()}...`;
+                    const response = await fetch(endpoints[modelKey], {
+                        method: 'POST',
+                        body: JSON.stringify({ image: base64Image })
+                    });
+                    const result = await response.json();
 
-            if (result.status === "success") {
-                const d = result.data;
-                const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
-                
-                const formattedText = `📅 Date: ${d.date}
-📱 App: ${d.app}
-👤 Name: ${d.name}
-🆔 ID: ${d.txnId}
-📝 Msg: ${d.imageMessage}
-💰 Amount: ${d.amount}
-📊 Direction: ${dirEmoji}
-⇄ Type: ${d.type}
-🏢 Account: ${d.account}
-🏷️ Category: ${d.category}
-🔗 Ref: ${d.refId}`;
+                    if (result.status === "success") {
+                        const d = result.data;
+                        const formattedText = `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`;
 
-                copyArea.innerText = formattedText;
-                resultsArea.style.display = "block";
-                status.innerText = "Data Extracted & Saved!";
-                statusContainer.style.background = "#d4edda"; // Success color
-            } else {
-                status.innerText = "Error: Extraction failed.";
+                        copyArea.innerText = formattedText;
+                        resultsArea.style.display = "block";
+                        postActionArea.style.display = "block";
+                        status.innerText = `Success (${modelKey.toUpperCase()}) - Copied!`;
+
+                        await navigator.clipboard.writeText(formattedText);
+                        return; 
+                    } else {
+                        throw new Error("Parsing failed");
+                    }
+                } catch (e) {
+                    if (modelKey === attemptOrder[0]) {
+                        status.innerText = `${modelKey.toUpperCase()} failed. Falling back...`;
+                        await new Promise(r => setTimeout(r, 800));
+                    } else {
+                        status.innerText = "All models failed.";
+                    }
+                }
             }
-        } catch (e) {
-            status.innerText = "Extraction Complete (Sheet Updated)";
-            console.error(e);
+        } catch (err) {
+            status.innerText = "System error.";
         } finally {
             loader.style.display = "none";
-            preview.style.opacity = "1";
+            uploadBtn.disabled = false;
         }
-    }
+    };
 
-    // Auto-trigger on Load if image is shared
-    window.addEventListener('load', async () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('shared')) {
-            const cache = await caches.open('shared-data');
-            const response = await cache.match('shared-image');
-            if (response) {
-                const sharedBlob = await response.blob();
-                preview.src = URL.createObjectURL(sharedBlob);
-                preview.style.display = 'block';
-                
-                // Immediately start extraction
-                await startExtraction(sharedBlob);
-                
-                await cache.delete('shared-image');
-            }
-        }
-    });
+    document.getElementById('monthly-btn').onclick = () => window.location.href = 'https://oprasannakumar.github.io/MonthlytransactionsGoogleSheets/';
+    document.getElementById('loan-btn').onclick = () => window.location.href = 'https://oprasannakumar.github.io/LoanTransferGoogleSheets/';
 
     copyArea.onclick = () => {
         navigator.clipboard.writeText(copyArea.innerText).then(() => {
-            const originalText = copyArea.innerText;
-            copyArea.innerText = "✅ COPIED!";
-            setTimeout(() => {
-                copyArea.innerText = originalText;
-            }, 1000);
+            const original = copyArea.innerText;
+            copyArea.innerText = "✅ COPIED AGAIN!";
+            setTimeout(() => { copyArea.innerText = original; }, 1000);
         });
     };
 </script>
-
 </body>
 </html>
