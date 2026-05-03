@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Extractor</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f1f3f5; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; transition: opacity 0.3s; }
+        
+        #results-area { display: none; text-align: left; margin-top: 15px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; position: relative; animation: slideUp 0.4s ease-out; }
+        #copy-area { padding: 15px; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; line-height: 1.5; color: #212529; cursor: pointer; }
+        .copy-hint { font-size: 0.75rem; color: #007bff; text-align: center; padding-bottom: 10px; font-weight: bold; }
+        
+        #status-container { display: flex; align-items: center; justify-content: center; margin: 10px 0; padding: 10px; border-radius: 10px; }
+        #status { font-size: 0.9rem; font-weight: 500; color: #444; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 18px; height: 18px; display: none; animation: spin 1s linear infinite; margin-right: 10px; }
+        
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .processing { background: #e7f1ff; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h3 style="margin: 0 0 15px 0;">Transaction Extractor</h3>
+    
+    <img id="preview" src="" alt="Preview">
+    
+    <div id="status-container">
+        <div id="loader" class="loader"></div>
+        <span id="status">Ready...</span>
+    </div>
+
+    <div id="results-area">
+        <div id="copy-area"></div>
+        <div class="copy-hint">Tap to Copy Data</div>
+    </div>
+</div>
+
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch(console.error);
+        });
+    }
+
+    const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"; 
+    const preview = document.getElementById('preview');
+    const status = document.getElementById('status');
+    const statusContainer = document.getElementById('status-container');
+    const loader = document.getElementById('loader');
+    const resultsArea = document.getElementById('results-area');
+    const copyArea = document.getElementById('copy-area');
+
+    const blobToBase64 = blob => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+
+    // Main extraction logic
+    async function startExtraction(blob) {
+        loader.style.display = "inline-block";
+        statusContainer.classList.add('processing');
+        status.innerText = "Extracting with AI...";
+        resultsArea.style.display = "none";
+        preview.style.opacity = "0.6";
+
+        try {
+            const base64Image = await blobToBase64(blob);
+            const response = await fetch(GAS_ENDPOINT, {
+                method: 'POST',
+                body: JSON.stringify({ image: base64Image })
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                const d = result.data;
+                const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
+                
+                const formattedText = `📅 Date: ${d.date}
+📱 App: ${d.app}
+👤 Name: ${d.name}
+🆔 ID: ${d.txnId}
+📝 Msg: ${d.imageMessage}
+💰 Amount: ${d.amount}
+📊 Direction: ${dirEmoji}
+⇄ Type: ${d.type}
+🏢 Account: ${d.account}
+🏷️ Category: ${d.category}
+🔗 Ref: ${d.refId}`;
+
+                copyArea.innerText = formattedText;
+                resultsArea.style.display = "block";
+                status.innerText = "Data Extracted & Saved!";
+                statusContainer.style.background = "#d4edda"; // Success color
+            } else {
+                status.innerText = "Error: Extraction failed.";
+            }
+        } catch (e) {
+            status.innerText = "Extraction Complete (Sheet Updated)";
+            console.error(e);
+        } finally {
+            loader.style.display = "none";
+            preview.style.opacity = "1";
+        }
+    }
+
+    // Auto-trigger on Load if image is shared
+    window.addEventListener('load', async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('shared')) {
+            const cache = await caches.open('shared-data');
+            const response = await cache.match('shared-image');
+            if (response) {
+                const sharedBlob = await response.blob();
+                preview.src = URL.createObjectURL(sharedBlob);
+                preview.style.display = 'block';
+                
+                // Immediately start extraction
+                await startExtraction(sharedBlob);
+                
+                await cache.delete('shared-image');
+            }
+        }
+    });
+
+    copyArea.onclick = () => {
+        navigator.clipboard.writeText(copyArea.innerText).then(() => {
+            const originalText = copyArea.innerText;
+            copyArea.innerText = "✅ COPIED!";
+            setTimeout(() => {
+                copyArea.innerText = originalText;
+            }, 1000);
+        });
+    };
+</script>
+
+</body>
+</html>
