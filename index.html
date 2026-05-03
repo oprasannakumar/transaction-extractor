@@ -76,35 +76,44 @@ if ('serviceWorker' in navigator) {
 
     modelSelect.onchange = () => uploadBtn.disabled = !modelSelect.value;
 
-    // 3. Backend Upload Logic
-    uploadBtn.onclick = async () => {
-        if (!sharedBlob) return;
-        
-        status.innerText = "Uploading to " + modelSelect.value + "...";
-        uploadBtn.disabled = true;
+   uploadBtn.onclick = async () => {
+    if (!sharedBlob) return;
+    
+    const selectedModel = modelSelect.value;
+    status.innerText = "Uploading to " + selectedModel + "...";
+    uploadBtn.disabled = true;
 
-        const formData = new FormData();
-        formData.append('image', sharedBlob);
-        formData.append('model', modelSelect.value);
+    const formData = new FormData();
+    formData.append('image', sharedBlob);
+    formData.append('model', selectedModel);
 
-        try {
-            // Replace with your actual transaction processing API URL
-            const res = await fetch('https://your-api-backend.com/process', {
-                method: 'POST',
-                body: formData
-            });
-            if (res.ok) {
-                status.innerText = "Success! Data extracted.";
-                uploadBtn.innerText = "Done";
-            } else {
-                status.innerText = "Server error. Please try again.";
-                uploadBtn.disabled = false;
-            }
-        } catch (e) {
-            status.innerText = "Connection error. Check backend URL.";
+    // Define your endpoints here
+    let targetUrl = '';
+    if (selectedModel === 'gemini-1-5') {
+        targetUrl = 'https://your-gemini-backend.com/process';
+    } else if (selectedModel === 'claude-3-5') {
+        targetUrl = 'https://your-groq-backend.com/process';
+    }
+
+    try {
+        const res = await fetch(targetUrl, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (res.ok) {
+            status.innerText = "Success! Data extracted via " + selectedModel;
+            uploadBtn.innerText = "Done";
+        } else {
+            status.innerText = "Server error (" + res.status + "). Please try again.";
             uploadBtn.disabled = false;
         }
-    };
+    } catch (e) {
+        console.error(e);
+        status.innerText = "Connection error. Check backend URL.";
+        uploadBtn.disabled = false;
+    }
+};
 </script>
 </body>
 </html>
