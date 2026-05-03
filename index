@@ -22,6 +22,8 @@
         #status { font-size: 0.85rem; color: #666; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 16px; height: 16px; display: none; animation: spin 1s linear infinite; margin-right: 8px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 12px; border: 1px solid #ccc; background: white; font-size: 0.9rem; appearance: none; }
     </style>
 </head>
 <body>
@@ -34,6 +36,11 @@
         <div id="loader" class="loader"></div>
         <span id="status">Waiting for shared image...</span>
     </div>
+
+    <select id="model-select">
+        <option value="gemini">Gemini (Primary)</option>
+        <option value="groq">Groq (Secondary)</option>
+    </select>
 
     <button id="upload-btn" disabled>EXTRACT DATA</button>
 
@@ -53,17 +60,22 @@
         });
     }
 
-    const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"; 
+    const endpoints = {
+        gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
+        groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
+    };
+
     const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
     const status = document.getElementById('status');
     const loader = document.getElementById('loader');
     const resultsArea = document.getElementById('results-area');
     const copyArea = document.getElementById('copy-area');
+    const modelSelect = document.getElementById('model-select');
     
     let sharedBlob = null;
 
-    // 2. HANDLE SHARED IMAGE FROM CACHE
+    // 2. HANDLE SHARED IMAGE
     window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
@@ -75,7 +87,6 @@
                 preview.style.display = 'block';
                 status.innerText = "Image received. Tap Extract.";
                 uploadBtn.disabled = false;
-                // Clean up cache after loading
                 await cache.delete('shared-image');
             }
         }
@@ -88,30 +99,36 @@
         reader.readAsDataURL(blob);
     });
 
-    // 3. UPLOAD AND FORMAT DATA
+    // 3. UPLOAD AND FALLBACK LOGIC
     uploadBtn.onclick = async () => {
         if (!sharedBlob) return;
-        
+
         loader.style.display = "inline-block";
-        status.innerText = "Analyzing with Groq AI...";
         uploadBtn.disabled = true;
         resultsArea.style.display = "none";
-
+        
         try {
             const base64Image = await blobToBase64(sharedBlob);
-            const response = await fetch(GAS_ENDPOINT, {
-                method: 'POST',
-                body: JSON.stringify({ image: base64Image })
-            });
+            const selected = modelSelect.value;
+            const alternative = selected === 'gemini' ? 'groq' : 'gemini';
+            const attemptOrder = [selected, alternative];
 
-            const result = await response.json();
+            for (let modelKey of attemptOrder) {
+                try {
+                    status.innerText = `Analyzing with ${modelKey.toUpperCase()}...`;
+                    
+                    const response = await fetch(endpoints[modelKey], {
+                        method: 'POST',
+                        body: JSON.stringify({ image: base64Image })
+                    });
 
-            if (result.status === "success") {
-                const d = result.data;
-                const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
-                
-                // YOUR REQUESTED FORMAT
-                const formattedText = `📅 Date: ${d.date}
+                    const result = await response.json();
+
+                    if (result.status === "success") {
+                        const d = result.data;
+                        const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
+
+                        copyArea.innerText = `📅 Date: ${d.date}
 📱 App: ${d.app}
 👤 Name: ${d.name}
 🆔 ID: ${d.txnId}
@@ -123,15 +140,25 @@
 🏷️ Category: ${d.category}
 🔗 Ref: ${d.refId}`;
 
-                copyArea.innerText = formattedText;
-                resultsArea.style.display = "block";
-                status.innerText = "Extract Success!";
-            } else {
-                status.innerText = "Error: " + result.data;
+                        resultsArea.style.display = "block";
+                        status.innerText = `Success (${modelKey.toUpperCase()})`;
+                        return; // Success! Exit the function.
+                    } else {
+                        throw new Error(result.data || "Parsing failed");
+                    }
+                } catch (e) {
+                    console.error(`${modelKey} failed:`, e);
+                    if (modelKey === attemptOrder[0]) {
+                        status.innerText = `${modelKey.toUpperCase()} failed. Trying fallback...`;
+                        await new Promise(r => setTimeout(r, 800));
+                    } else {
+                        status.innerText = "Both models failed.";
+                    }
+                }
             }
-        } catch (e) {
-            status.innerText = "Network error. Check console.";
-            console.error(e);
+        } catch (globalError) {
+            status.innerText = "Error processing image.";
+            console.error(globalError);
         } finally {
             loader.style.display = "none";
             uploadBtn.disabled = false;
@@ -143,9 +170,7 @@
         navigator.clipboard.writeText(copyArea.innerText).then(() => {
             const originalText = copyArea.innerText;
             copyArea.innerText = "✅ COPIED TO CLIPBOARD!";
-            setTimeout(() => {
-                copyArea.innerText = originalText;
-            }, 1200);
+            setTimeout(() => { copyArea.innerText = originalText; }, 1200);
         });
     };
 </script>
