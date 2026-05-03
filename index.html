@@ -10,18 +10,14 @@
         .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
         #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; }
         
-        button { width: 100%; padding: 16px; margin: 10px 0; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
-        #upload-btn { background: #007bff; color: white; }
-        #upload-btn:disabled { background: #ccc; }
+        #status-container { display: flex; align-items: center; justify-content: center; margin: 15px 0; min-height: 24px; }
+        #status { font-size: 0.9rem; color: #555; font-weight: 500; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 18px; height: 18px; display: none; animation: spin 1s linear infinite; margin-right: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         #results-area { display: none; text-align: left; margin-top: 15px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; position: relative; }
         #copy-area { padding: 15px; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; line-height: 1.5; color: #212529; cursor: pointer; }
         .copy-hint { font-size: 0.7rem; color: #007bff; text-align: center; padding-bottom: 10px; font-weight: bold; }
-        
-        #status-container { display: flex; align-items: center; justify-content: center; margin: 10px 0; }
-        #status { font-size: 0.85rem; color: #666; }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 16px; height: 16px; display: none; animation: spin 1s linear infinite; margin-right: 8px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -32,10 +28,8 @@
     
     <div id="status-container">
         <div id="loader" class="loader"></div>
-        <span id="status">Waiting for shared image...</span>
+        <span id="status">Waiting for image...</span>
     </div>
-
-    <button id="upload-btn" disabled>EXTRACT DATA</button>
 
     <div id="results-area">
         <div id="copy-area"></div>
@@ -46,9 +40,7 @@
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('SW Registered'))
-                .catch(err => console.log('SW Registration Failed', err));
+            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Fail', err));
         });
     }
 
@@ -58,29 +50,10 @@
     };
 
     const preview = document.getElementById('preview');
-    const uploadBtn = document.getElementById('upload-btn');
     const status = document.getElementById('status');
     const loader = document.getElementById('loader');
     const resultsArea = document.getElementById('results-area');
     const copyArea = document.getElementById('copy-area');
-    
-    let sharedBlob = null;
-
-    window.addEventListener('load', async () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('shared')) {
-            const cache = await caches.open('shared-data');
-            const response = await cache.match('shared-image');
-            if (response) {
-                sharedBlob = await response.blob();
-                preview.src = URL.createObjectURL(sharedBlob);
-                preview.style.display = 'block';
-                status.innerText = "Image received. Tap Extract.";
-                uploadBtn.disabled = false;
-                await cache.delete('shared-image');
-            }
-        }
-    });
 
     const blobToBase64 = blob => new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -89,16 +62,12 @@
         reader.readAsDataURL(blob);
     });
 
-    uploadBtn.onclick = async () => {
-        if (!sharedBlob) return;
-
+    const processExtraction = async (blob) => {
         loader.style.display = "inline-block";
-        uploadBtn.disabled = true;
         resultsArea.style.display = "none";
         
         try {
-            const base64Image = await blobToBase64(sharedBlob);
-            // Forced Order: Gemini is primary, Groq is backup
+            const base64Image = await blobToBase64(blob);
             const attemptOrder = ['gemini', 'groq'];
 
             for (let modelKey of attemptOrder) {
@@ -133,27 +102,44 @@
                         status.innerText = `Success (${modelKey.toUpperCase()}) - Copied!`;
 
                         await navigator.clipboard.writeText(formattedText);
+                        loader.style.display = "none";
                         return; 
                     } else {
-                        throw new Error(result.data || "Parsing failed");
+                        throw new Error("Parsing failed");
                     }
                 } catch (e) {
-                    console.error(`${modelKey} failed:`, e);
                     if (modelKey === 'gemini') {
-                        status.innerText = "Gemini failed. Trying Groq fallback...";
-                        await new Promise(r => setTimeout(r, 800));
+                        status.innerText = "Gemini failed. Switching to Groq...";
+                        await new Promise(r => setTimeout(r, 500));
                     } else {
-                        status.innerText = "Both extraction models failed.";
+                        status.innerText = "Extraction failed on both models.";
                     }
                 }
             }
-        } catch (globalError) {
+        } catch (err) {
             status.innerText = "Error processing image.";
         } finally {
             loader.style.display = "none";
-            uploadBtn.disabled = false;
         }
     };
+
+    // Auto-trigger on load if shared image exists
+    window.addEventListener('load', async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('shared')) {
+            const cache = await caches.open('shared-data');
+            const response = await cache.match('shared-image');
+            if (response) {
+                const sharedBlob = await response.blob();
+                preview.src = URL.createObjectURL(sharedBlob);
+                preview.style.display = 'block';
+                await cache.delete('shared-image');
+                
+                // Automatic trigger
+                processExtraction(sharedBlob);
+            }
+        }
+    });
 
     copyArea.onclick = () => {
         navigator.clipboard.writeText(copyArea.innerText).then(() => {
