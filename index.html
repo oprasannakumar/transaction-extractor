@@ -33,6 +33,10 @@
 
         <button id="upload-btn" disabled>Confirm & Upload</button>
     </div>
+    <div id="results-area" style="display:none; text-align:left; margin-top:20px; padding:15px; background:#f0f7ff; border-radius:12px; border:1px solid #d0e3ff;">
+    <h3 style="margin-top:0; font-size:1rem;">Extracted Data</h3>
+    <pre id="json-output" style="white-space: pre-wrap; font-size:0.85rem; font-family: monospace;"></pre>
+</div>
     <p id="status">Waiting for image share...</p>
 </div>
 
@@ -76,41 +80,52 @@ if ('serviceWorker' in navigator) {
 
     modelSelect.onchange = () => uploadBtn.disabled = !modelSelect.value;
 
-   uploadBtn.onclick = async () => {
+  uploadBtn.onclick = async () => {
     if (!sharedBlob) return;
     
     const selectedModel = modelSelect.value;
-    status.innerText = "Uploading to " + selectedModel + "...";
+    const resultsArea = document.getElementById('results-area');
+    const jsonOutput = document.getElementById('json-output');
+    
+    status.innerText = "Processing with " + selectedModel + "...";
     uploadBtn.disabled = true;
 
     const formData = new FormData();
     formData.append('image', sharedBlob);
     formData.append('model', selectedModel);
 
-    // Define your endpoints here
-    let targetUrl = '';
-    if (selectedModel === 'gemini-1-5') {
-        targetUrl = 'https://your-gemini-backend.com/process';
-    } else if (selectedModel === 'claude-3-5') {
-        targetUrl = 'https://your-groq-backend.com/process';
-    }
+    // Endpoint Mapping
+    const endpoints = {
+        'gemini-1-5': 'https://your-gemini-backend.com/process',
+        'claude-3-5': 'https://your-groq-backend.com/process'
+    };
 
     try {
-        const res = await fetch(targetUrl, {
+        const res = await fetch(endpoints[selectedModel], {
             method: 'POST',
             body: formData
         });
 
         if (res.ok) {
-            status.innerText = "Success! Data extracted via " + selectedModel;
-            uploadBtn.innerText = "Done";
+            // 1. Receive the data from backend
+            const data = await res.json(); 
+
+            // 2. Display the data in the UI
+            status.innerText = "Success! Data extracted.";
+            uploadBtn.innerText = "Process Another";
+            uploadBtn.disabled = false;
+            
+            resultsArea.style.display = 'block';
+            jsonOutput.innerText = JSON.stringify(data, null, 2);
+            
+            // Optional: Auto-scroll to results
+            resultsArea.scrollIntoView({ behavior: 'smooth' });
         } else {
-            status.innerText = "Server error (" + res.status + "). Please try again.";
+            status.innerText = "Error: " + res.statusText;
             uploadBtn.disabled = false;
         }
     } catch (e) {
-        console.error(e);
-        status.innerText = "Connection error. Check backend URL.";
+        status.innerText = "Connection error. Check your API endpoints.";
         uploadBtn.disabled = false;
     }
 };
