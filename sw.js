@@ -1,30 +1,35 @@
-const repoPath = '/transaction-extractor/';
-
-self.addEventListener('install', (event) => {
-    self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
-    event.waitUntil(clients.claim());
-});
-
-self.addEventListener('fetch', (event) => {
-    const url = new URL(event.request.url);
-
-    // Capture the POST request from the share menu
-    if (event.request.method === 'POST' && url.pathname === repoPath) {
-        event.respondWith(
-            (async () => {
-                const formData = await event.request.formData();
-                const imageFile = formData.get('image');
-                
-                // Temporarily store image in Cache API
-                const cache = await caches.open('shared-data');
-                await cache.put('shared-image', new Response(imageFile));
-
-                // Redirect to the main UI with a signal to check the cache
-                return Response.redirect(`${repoPath}?shared=true`, 303);
-            })()
-        );
+{
+  "name": "Transaction Extractor",
+  "short_name": "Extractor",
+  "start_url": "/transaction-extractor/",
+  "scope": "/transaction-extractor/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007bff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1043/1043323.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/192/1043/1043323.png",
+      "sizes": "192x192",
+      "type": "image/png"
     }
-});
+  ],
+  "share_target": {
+    "action": "/transaction-extractor/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "image",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  }
+}
