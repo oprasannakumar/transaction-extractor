@@ -1,35 +1,19 @@
-{
-  "name": "Transaction Extractor",
-  "short_name": "Extractor",
-  "start_url": "/transaction-extractor/",
-  "scope": "/transaction-extractor/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#007bff",
-  "icons": [
-    {
-      "src": "https://cdn-icons-png.flaticon.com/512/1043/1043323.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "https://cdn-icons-png.flaticon.com/192/1043/1043323.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ],
-  "share_target": {
-    "action": "/transaction-extractor/",
-    "method": "POST",
-    "enctype": "multipart/form-data",
-    "params": {
-      "files": [
-        {
-          "name": "image",
-          "accept": ["image/*"]
-        }
-      ]
-    }
+self.addEventListener('fetch', (event) => {
+  // Check if this is a POST request to our share target
+  if (event.request.method === 'POST' && 
+      event.request.url.includes('/transaction-extractor/')) {
+    
+    event.respondWith((async () => {
+      const formData = await event.request.formData();
+      const imageFile = formData.get('image');
+      
+      // Open a cache and store the image blob
+      const cache = await caches.open('shared-data');
+      await cache.put('shared-image', new Response(imageFile));
+
+      // Redirect the user to the main page with a query parameter
+      // Using 303 See Other tells the browser to change POST to GET
+      return Response.redirect('/transaction-extractor/?shared=1', 303);
+    })());
   }
-}
+});
