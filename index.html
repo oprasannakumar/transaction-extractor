@@ -15,14 +15,12 @@
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 18px; height: 18px; display: none; animation: spin 1s linear infinite; margin-right: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* History Styles */
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; }
         .btn-clear { background: #ff4757; color: white; border: none; padding: 5px 12px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; }
         #history-list { width: 100%; margin-top: 15px; }
-        .txn-item { background: #fff; border: 1px solid #eee; border-radius: 12px; margin-bottom: 15px; overflow: hidden; text-align: left; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .txn-img { width: 100%; height: 120px; object-fit: cover; border-bottom: 1px solid #eee; }
+        .txn-item { background: #fff; border: 1px solid #eee; border-radius: 12px; margin-bottom: 15px; overflow: hidden; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .txn-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid #eee; }
         .txn-details { padding: 12px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; cursor: pointer; position: relative; }
-        .txn-details:active { background: #f0f7ff; }
         .copy-tag { position: absolute; top: 5px; right: 8px; font-size: 0.6rem; color: #007bff; font-family: sans-serif; }
     </style>
 </head>
@@ -32,30 +30,39 @@
     <h3 style="margin: 0;">Transaction Vault</h3>
     <div id="status-container">
         <div id="loader" class="loader"></div>
-        <span id="status">Waiting for shared image...</span>
+        <span id="status">Ready to capture...</span>
     </div>
     <img id="preview" src="" alt="Latest Preview">
 
     <div class="history-header">
-        <h4 style="margin: 0;">History</h4>
+        <h4 style="margin: 0;">Recent Transactions</h4>
         <button class="btn-clear" onclick="clearHistory()">Clear All</button>
     </div>
     <div id="history-list"></div>
 </div>
 
 <script>
-    const DB_NAME = "TxnDatabase";
+    // 1. REGISTER SERVICE WORKER
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW Active'))
+                .catch(err => console.log('SW Error', err));
+        });
+    }
+
+    const DB_NAME = "TxnVaultDB";
     const STORE_NAME = "transactions";
     const endpoints = {
         gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
         groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
-    // --- DB LOGIC ---
-    const initDB = () => new Promise((res) => {
-        const request = indexedDB.open(DB_NAME, 1);
-        request.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
-        request.onsuccess = e => res(e.target.result);
+    // 2. DB INITIALIZATION
+    const initDB = () => new Promise(res => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+        req.onsuccess = e => res(e.target.result);
     });
 
     async function saveTxn(blob, text) {
@@ -71,46 +78,46 @@
         list.innerHTML = "";
         const tx = db.transaction(STORE_NAME, "readonly");
         const store = tx.objectStore(STORE_NAME);
-        const request = store.getAll();
+        const req = store.getAll();
 
-        request.onsuccess = () => {
-            const items = request.result.reverse(); // Newest first
+        req.onsuccess = () => {
+            const items = req.result.sort((a,b) => b.timestamp - a.timestamp);
             items.forEach(item => {
                 const div = document.createElement('div');
                 div.className = "txn-item";
                 const imgUrl = URL.createObjectURL(item.blob);
-                
                 div.innerHTML = `
                     <img src="${imgUrl}" class="txn-img">
                     <div class="txn-details" onclick="copyText(this)">
                         <span class="copy-tag">Tap to copy</span>${item.text}
-                    </div>
-                `;
+                    </div>`;
                 list.appendChild(div);
             });
         };
     }
 
     async function clearHistory() {
-        if(!confirm("Delete all history?")) return;
+        if(!confirm("Clear all records?")) return;
         const db = await initDB();
         db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
         renderHistory();
     }
 
-    // --- EXTRACTION LOGIC ---
-    const blobToBase64 = b => new Promise(res => {
-        const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(b);
-    });
-
+    // 3. AUTO-TRIGGER EXTRACTION
     async function processExtraction(blob) {
-        document.getElementById('loader').style.display = "inline-block";
+        const loader = document.getElementById('loader');
         const status = document.getElementById('status');
+        loader.style.display = "inline-block";
         
         try {
-            const base64Image = await blobToBase64(blob);
+            const r = new FileReader();
+            const base64Image = await new Promise(res => {
+                r.onload = () => res(r.result.split(',')[1]);
+                r.readAsDataURL(blob);
+            });
+
             for (let model of ['gemini', 'groq']) {
-                status.innerText = `Trying ${model.toUpperCase()}...`;
+                status.innerText = `Using ${model.toUpperCase()}...`;
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64Image })});
                 const res = await resp.json();
 
@@ -120,13 +127,13 @@
                     
                     await saveTxn(blob, formatted);
                     await navigator.clipboard.writeText(formatted);
-                    status.innerText = "Saved & Copied!";
-                    document.getElementById('loader').style.display = "none";
+                    status.innerText = "Success! Copied to clipboard.";
+                    loader.style.display = "none";
                     return;
                 }
             }
-        } catch (e) { status.innerText = "Error encountered."; }
-        document.getElementById('loader').style.display = "none";
+        } catch (e) { status.innerText = "Processing error."; }
+        loader.style.display = "none";
     }
 
     function copyText(el) {
@@ -134,10 +141,10 @@
         navigator.clipboard.writeText(text);
         const tag = el.querySelector('.copy-tag');
         tag.innerText = "✅ COPIED";
-        setTimeout(() => tag.innerText = "Tap to copy", 1500);
+        setTimeout(() => tag.innerText = "Tap to copy", 1200);
     }
 
-    // --- INIT ---
+    // 4. HANDLE INCOMING SHARE
     window.addEventListener('load', async () => {
         renderHistory();
         const urlParams = new URLSearchParams(window.location.search);
@@ -146,8 +153,9 @@
             const response = await cache.match('shared-image');
             if (response) {
                 const blob = await response.blob();
-                document.getElementById('preview').src = URL.createObjectURL(blob);
-                document.getElementById('preview').style.display = 'block';
+                const preview = document.getElementById('preview');
+                preview.src = URL.createObjectURL(blob);
+                preview.style.display = 'block';
                 await cache.delete('shared-image');
                 processExtraction(blob);
             }
