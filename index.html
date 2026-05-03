@@ -4,59 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Transaction Extractor</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#007bff">
     <style>
-        body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f8f9fa; color: #333; margin: 0; }
-        .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); width: 100%; max-width: 400px; text-align: center; box-sizing: border-box; }
-        #preview { width: 100%; border-radius: 12px; margin: 20px 0; display: none; border: 1px solid #eee; }
+        body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f1f3f5; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; }
         
-        button { width: 100%; padding: 14px; margin: 12px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 1rem; outline: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        #upload-btn { background: #007bff; color: white; border: none; }
-        #upload-btn:hover { background: #0056b3; }
-        #upload-btn:disabled { background: #ccc; cursor: not-allowed; }
+        button { width: 100%; padding: 16px; margin: 10px 0; border-radius: 12px; font-size: 1rem; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
+        #upload-btn { background: #007bff; color: white; }
+        #upload-btn:disabled { background: #ccc; }
         
-        #copy-btn { background: #28a745; color: white; border: none; display: none; margin-top: 10px; }
-        #copy-btn:active { transform: scale(0.98); background: #218838; }
-
-        #status { font-size: 0.9rem; color: #666; margin-top: 10px; }
+        #results-area { display: none; text-align: left; margin-top: 15px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; position: relative; }
+        #copy-area { padding: 15px; white-space: pre-wrap; font-family: monospace; font-size: 0.95rem; line-height: 1.5; color: #212529; cursor: pointer; }
+        .copy-hint { font-size: 0.7rem; color: #007bff; text-align: center; padding-bottom: 10px; font-weight: bold; }
         
-        #results-area { display: none; text-align: left; margin-top: 20px; padding: 15px; background: #fff; border-radius: 12px; border: 2px dashed #007bff; }
-        .data-row { margin-bottom: 8px; font-size: 0.9rem; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; }
-        .label { font-weight: bold; color: #555; text-transform: uppercase; font-size: 0.75rem; }
-        .value { color: #000; display: block; word-break: break-all; }
+        #status { font-size: 0.85rem; color: #666; margin: 10px 0; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 20px; height: 20px; display: inline-block; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 8px; visibility: hidden; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2 style="margin-top:0">Transaction Extractor</h2>
-    <img id="preview" src="" alt="Shared Image Preview">
+    <h3 style="margin: 0 0 15px 0;">Transaction Extractor</h3>
+    <img id="preview" src="" alt="Preview">
     
-    <button id="upload-btn" disabled>Extract & Save</button>
+    <div id="status-container">
+        <div id="loader" class="loader"></div>
+        <span id="status">Waiting for shared image...</span>
+    </div>
+
+    <button id="upload-btn" disabled>EXTRACT DATA</button>
 
     <div id="results-area">
-        <div id="data-content"></div>
-        <button id="copy-btn">Tap to Copy All</button>
+        <div id="copy-area"></div>
+        <div class="copy-hint">Tap above to Copy</div>
     </div>
-    
-    <p id="status">Waiting for image...</p>
 </div>
 
 <script>
-    // REPLACE THIS WITH YOUR GOOGLE SCRIPT WEB APP URL
     const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec";
-    
     const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
-    const copyBtn = document.getElementById('copy-btn');
     const status = document.getElementById('status');
+    const loader = document.getElementById('loader');
     const resultsArea = document.getElementById('results-area');
-    const dataContent = document.getElementById('data-content');
+    const copyArea = document.getElementById('copy-area');
     
     let sharedBlob = null;
 
-    // Load shared image from Cache
+    // Load Image from PWA Cache
     window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
@@ -66,10 +62,8 @@
                 sharedBlob = await response.blob();
                 preview.src = URL.createObjectURL(sharedBlob);
                 preview.style.display = 'block';
-                status.innerText = "Ready to process.";
+                status.innerText = "Image loaded successfully.";
                 uploadBtn.disabled = false;
-                // Clean up cache once loaded
-                await cache.delete('shared-image');
             }
         }
     });
@@ -83,47 +77,67 @@
 
     uploadBtn.onclick = async () => {
         if (!sharedBlob) return;
-        status.innerText = "Processing with Groq AI...";
+        
+        loader.style.visibility = "visible";
+        status.innerText = "Analyzing Transaction...";
         uploadBtn.disabled = true;
+        resultsArea.style.display = "none";
 
         try {
             const base64Image = await blobToBase64(sharedBlob);
-            
-            await fetch(GAS_ENDPOINT, {
+            const response = await fetch(GAS_ENDPOINT, {
                 method: 'POST',
-                mode: 'no-cors', 
                 body: JSON.stringify({ image: base64Image })
             });
 
-            status.innerText = "Success! Data saved to Sheet.";
-            renderConfirmation();
-            uploadBtn.innerText = "Done";
+            const result = await response.json();
+
+            if (result.status === "success") {
+                const d = result.data;
+                const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
+                
+                // Construct requested format
+                const formattedText = 
+`📅 Date: ${d.date}
+📱 App: ${d.app}
+👤 Name: ${d.name}
+🆔 ID: ${d.txnId}
+📝 Msg: ${d.imageMessage}
+💰 Amount: ${d.amount}
+📊 Direction: ${dirEmoji}
+⇄ Type: ${d.type}
+🏢 Account: ${d.account}
+🏷️ Category: ${d.category}
+🔗 Ref: ${d.refId}`;
+
+                copyArea.innerText = formattedText;
+                resultsArea.style.display = "block";
+                status.innerText = "Successfully extracted!";
+            } else {
+                status.innerText = "Extraction failed. Try again.";
+            }
         } catch (e) {
-            status.innerText = "Error: " + e.message;
+            console.error(e);
+            status.innerText = "Saved to Sheet (Network UI error)";
+        } finally {
+            loader.style.visibility = "hidden";
             uploadBtn.disabled = false;
         }
     };
 
-    function renderConfirmation() {
-        resultsArea.style.display = 'block';
-        copyBtn.style.display = 'block';
-        dataContent.innerHTML = `
-            <div class="data-row"><span class="label">Status</span><span class="value">Transaction Sent</span></div>
-            <div class="data-row"><span class="label">Target</span><span class="value">Google Sheet Updated</span></div>
-        `;
-    }
-
-    copyBtn.onclick = () => {
-        navigator.clipboard.writeText(dataContent.innerText).then(() => {
-            copyBtn.innerText = "✅ Copied!";
-            setTimeout(() => copyBtn.innerText = "Tap to Copy All", 2000);
+    // Single Tap Copy Functionality
+    copyArea.onclick = () => {
+        navigator.clipboard.writeText(copyArea.innerText).then(() => {
+            const originalText = copyArea.innerText;
+            const originalBg = copyArea.style.background;
+            
+            copyArea.innerText = "\n✅ Copied to Clipboard!";
+            setTimeout(() => {
+                copyArea.innerText = originalText;
+            }, 1000);
         });
     };
-
-    // Service Worker Registration
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(console.error);
-    }
 </script>
+
 </body>
 </html>
