@@ -18,10 +18,17 @@
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; }
         .btn-clear { background: #ff4757; color: white; border: none; padding: 5px 12px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; }
         #history-list { width: 100%; margin-top: 15px; }
-        .txn-item { background: #fff; border: 1px solid #eee; border-radius: 12px; margin-bottom: 15px; overflow: hidden; text-align: left; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .txn-img { width: 100%; height: 140px; object-fit: cover; border-bottom: 1px solid #eee; }
-        .txn-details { padding: 12px; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; cursor: pointer; position: relative; }
-        .copy-tag { position: absolute; top: 5px; right: 8px; font-size: 0.6rem; color: #007bff; font-family: sans-serif; }
+        
+        /* Compact List View */
+        .txn-item { background: #fff; border: 1px solid #eee; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; padding: 10px; cursor: pointer; }
+        .txn-thumb { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 12px; }
+        .txn-brief { flex: 1; text-align: left; font-size: 0.85rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+        /* Full Screen Modal */
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; flex-direction: column; overflow-y: auto; color: white; }
+        #modal-img { width: 100%; max-height: 60vh; object-fit: contain; margin-top: 20px; }
+        #modal-data { padding: 25px; font-family: monospace; line-height: 1.6; font-size: 1rem; text-align: left; background: #1a1a1a; border-radius: 20px 20px 0 0; margin-top: 20px; }
+        .close-btn { position: fixed; top: 20px; right: 20px; font-size: 2rem; color: white; font-weight: bold; cursor: pointer; text-shadow: 0 0 10px #000; }
     </style>
 </head>
 <body>
@@ -30,25 +37,27 @@
     <h3 style="margin: 0;">Transaction Vault</h3>
     <div id="status-container">
         <div id="loader" class="loader"></div>
-        <span id="status">Ready to capture...</span>
+        <span id="status">Ready...</span>
     </div>
     <img id="preview" src="" alt="Latest Preview">
 
     <div class="history-header">
-        <h4 style="margin: 0;">Recent Transactions</h4>
+        <h4 style="margin: 0;">Today's Log</h4>
         <button class="btn-clear" onclick="clearHistory()">Clear All</button>
     </div>
     <div id="history-list"></div>
 </div>
 
+<!-- Enlarge Modal -->
+<div id="modal" onclick="closeModal()">
+    <span class="close-btn">&times;</span>
+    <img id="modal-img" src="" alt="Enlarged Txn">
+    <div id="modal-data"></div>
+</div>
+
 <script>
-    // 1. REGISTER SERVICE WORKER
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('SW Active'))
-                .catch(err => console.log('SW Error', err));
-        });
+        window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
     }
 
     const DB_NAME = "TxnVaultDB";
@@ -58,12 +67,26 @@
         groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
-    // 2. DB INITIALIZATION
     const initDB = () => new Promise(res => {
         const req = indexedDB.open(DB_NAME, 1);
         req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
         req.onsuccess = e => res(e.target.result);
     });
+
+    async function performHousekeeping() {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+        req.onsuccess = () => {
+            const currentISTDate = new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' });
+            req.result.forEach(item => {
+                const itemDate = new Date(item.timestamp).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' });
+                if (itemDate !== currentISTDate) store.delete(item.id);
+            });
+            renderHistory();
+        };
+    }
 
     async function saveTxn(blob, text) {
         const db = await initDB();
@@ -76,91 +99,86 @@
         const db = await initDB();
         const list = document.getElementById('history-list');
         list.innerHTML = "";
-        const tx = db.transaction(STORE_NAME, "readonly");
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.getAll();
-
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         req.onsuccess = () => {
-            const items = req.result.sort((a,b) => b.timestamp - a.timestamp);
-            items.forEach(item => {
+            req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
                 div.className = "txn-item";
-                const imgUrl = URL.createObjectURL(item.blob);
-                div.innerHTML = `
-                    <img src="${imgUrl}" class="txn-img">
-                    <div class="txn-details" onclick="copyText(this)">
-                        <span class="copy-tag">Tap to copy</span>${item.text}
-                    </div>`;
+                const url = URL.createObjectURL(item.blob);
+                div.onclick = () => openModal(url, item.text);
+                div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.text.split('\n')[0]}...</div>`;
                 list.appendChild(div);
             });
         };
     }
 
-    async function clearHistory() {
-        if(!confirm("Clear all records?")) return;
-        const db = await initDB();
-        db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
-        renderHistory();
+    function openModal(imgUrl, fullText) {
+        document.getElementById('modal-img').src = imgUrl;
+        document.getElementById('modal-data').innerText = fullText;
+        document.getElementById('modal').style.display = "flex";
+        // Auto-copy on open
+        navigator.clipboard.writeText(fullText);
     }
 
-    // 3. AUTO-TRIGGER EXTRACTION
+    function closeModal() { document.getElementById('modal').style.display = "none"; }
+
     async function processExtraction(blob) {
         const loader = document.getElementById('loader');
         const status = document.getElementById('status');
         loader.style.display = "inline-block";
-        
         try {
-            const r = new FileReader();
-            const base64Image = await new Promise(res => {
-                r.onload = () => res(r.result.split(',')[1]);
-                r.readAsDataURL(blob);
+            const base64 = await new Promise(res => {
+                const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
             });
-
             for (let model of ['gemini', 'groq']) {
                 status.innerText = `Using ${model.toUpperCase()}...`;
-                const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64Image })});
+                const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
                 const res = await resp.json();
-
                 if (res.status === "success") {
                     const d = res.data;
-                    const formatted = `📅 ${d.date} | 💰 ${d.amount}\n📱 ${d.app} | 👤 ${d.name}\n🆔 ${d.txnId}\n📊 ${d.direction} | 🏷️ ${d.category}\n🔗 Ref: ${d.refId}`;
-                    
+                    const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
+                    const formatted = `📱 App: ${d.app}
+👤 Name: ${d.name}
+🆔 ID: ${d.txnId}
+📝 Msg: ${d.imageMessage}
+💰 Amount: ${d.amount}
+📊 Direction: ${dirEmoji}
+⇄ Type: ${d.type}
+🏢 Account: ${d.account}
+🏷️ Category: ${d.category}
+🔗 Ref: ${d.refId}`;
                     await saveTxn(blob, formatted);
-                    await navigator.clipboard.writeText(formatted);
-                    status.innerText = "Success! Copied to clipboard.";
+                    status.innerText = "Success! Copied.";
                     loader.style.display = "none";
                     return;
                 }
             }
-        } catch (e) { status.innerText = "Processing error."; }
+        } catch (e) { status.innerText = "Error."; }
         loader.style.display = "none";
     }
 
-    function copyText(el) {
-        const text = el.innerText.replace("Tap to copy", "").trim();
-        navigator.clipboard.writeText(text);
-        const tag = el.querySelector('.copy-tag');
-        tag.innerText = "✅ COPIED";
-        setTimeout(() => tag.innerText = "Tap to copy", 1200);
-    }
-
-    // 4. HANDLE INCOMING SHARE
     window.addEventListener('load', async () => {
-        renderHistory();
+        await performHousekeeping();
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
             const cache = await caches.open('shared-data');
             const response = await cache.match('shared-image');
             if (response) {
                 const blob = await response.blob();
-                const preview = document.getElementById('preview');
-                preview.src = URL.createObjectURL(blob);
-                preview.style.display = 'block';
+                document.getElementById('preview').src = URL.createObjectURL(blob);
+                document.getElementById('preview').style.display = 'block';
                 await cache.delete('shared-image');
                 processExtraction(blob);
             }
         }
     });
+
+    async function clearHistory() {
+        if(!confirm("Clear today's logs?")) return;
+        const db = await initDB();
+        db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
+        renderHistory();
+    }
 </script>
 </body>
 </html>
