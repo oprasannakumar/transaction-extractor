@@ -1,19 +1,24 @@
 self.addEventListener('fetch', (event) => {
-  // Check if this is a POST request to our share target
-  if (event.request.method === 'POST' && 
-      event.request.url.includes('/transaction-extractor/')) {
-    
-    event.respondWith((async () => {
-      const formData = await event.request.formData();
-      const imageFile = formData.get('image');
-      
-      // Open a cache and store the image blob
-      const cache = await caches.open('shared-data');
-      await cache.put('shared-image', new Response(imageFile));
+  const url = new URL(event.request.url);
 
-      // Redirect the user to the main page with a query parameter
-      // Using 303 See Other tells the browser to change POST to GET
-      return Response.redirect('/transaction-extractor/?shared=1', 303);
-    })());
+  if (event.request.method === 'POST' && url.searchParams.has('shared')) {
+    event.respondWith(
+      (async () => {
+        const formData = await event.request.formData();
+        const files = formData.getAll('shared-image'); // Capture all files
+        const cache = await caches.open('shared-data');
+        
+        // Clear old shared data to start fresh
+        const keys = await cache.keys();
+        for (const key of keys) await cache.delete(key);
+
+        // Store each image with a unique timestamp/index
+        for (let i = 0; i < files.length; i++) {
+          await cache.put(`shared-image-${Date.now()}-${i}`, new Response(files[i]));
+        }
+        
+        return Response.redirect('./index.html?shared=1', 303);
+      })()
+    );
   }
 });
