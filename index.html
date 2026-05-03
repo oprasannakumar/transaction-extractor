@@ -14,6 +14,12 @@
             --glass-border: rgba(255, 255, 255, 0.1);
         }
 
+        /* Prevent the blue tap highlight box on mobile */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+        }
+
         body { 
             font-family: 'Segoe UI', Roboto, sans-serif; 
             display: flex; flex-direction: column; align-items: center; 
@@ -24,7 +30,7 @@
         .card { 
             background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center; 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 350px; text-align: center; 
         }
 
         h3 { 
@@ -33,6 +39,7 @@
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
+        /* Border applied while fetching and in history preview */
         #preview { 
             width: 100%; border-radius: 16px; margin-top: 20px; display: none; 
             border: 2px solid var(--neon-blue); box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
@@ -54,25 +61,33 @@
         .txn-item { 
             background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); 
             border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
-            padding: 12px; cursor: pointer;
+            padding: 12px; cursor: pointer; user-select: none;
         }
         .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; }
         .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; }
 
-        /* Modal - Enlarge Only */
+        /* Modal Layout */
         #modal { 
             display: none; position: fixed; inset: 0; 
             background: rgba(2, 6, 23, 0.98); z-index: 1000; 
-            flex-direction: column; overflow-y: auto;
+            flex-direction: column; overflow-y: auto; align-items: center;
         }
-        #modal-img { width: 100%; max-height: 50vh; object-fit: contain; margin-top: 40px; }
+        
+        /* Applied border to modal image to match the fetching preview */
+        #modal-img { 
+            width: 90%; max-width: 400px; max-height: 50vh; object-fit: contain; 
+            margin-top: 60px; border-radius: 16px;
+            border: 2px solid var(--neon-blue); box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+        }
+        
         #modal-data { 
-            padding: 30px; font-family: 'Courier New', monospace; line-height: 1.8; 
+            padding: 25px; font-family: 'Courier New', monospace; line-height: 1.8; 
             font-size: 0.95rem; text-align: left; color: var(--neon-blue);
-            background: rgba(255,255,255,0.02); margin: 20px; border-radius: 12px;
-            cursor: pointer; position: relative;
+            background: rgba(255,255,255,0.03); margin: 25px; border-radius: 12px;
+            cursor: pointer; position: relative; width: 85%; max-width: 400px;
+            border: 1px solid var(--glass-border);
         }
-        #modal-data::after { content: "Tap text to copy"; position: absolute; bottom: 8px; right: 12px; font-size: 0.6rem; color: #64748b; font-family: sans-serif; }
+        #modal-data::after { content: "TAP TO COPY"; position: absolute; top: 10px; right: 12px; font-size: 0.6rem; color: #64748b; font-family: sans-serif; font-weight: bold; }
         .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; z-index: 1001; }
     </style>
 </head>
@@ -87,8 +102,8 @@
     <img id="preview" src="" alt="Latest Sync">
 
     <div class="history-header">
-        <h4 style="margin:0; font-size: 0.9rem; color: #64748b;">Daily Cache</h4>
-        <button class="btn-clear" onclick="clearHistory()">Wipe Logs</button>
+        <h4 style="margin:0; font-size: 0.9rem; color: #64748b; letter-spacing: 1px;">DAILY CACHE</h4>
+        <button class="btn-clear" onclick="clearHistory()">WIPE LOGS</button>
     </div>
     <div id="history-list"></div>
 </div>
@@ -164,10 +179,11 @@
         event.stopPropagation();
         const text = document.getElementById('modal-data').innerText;
         navigator.clipboard.writeText(text).then(() => {
-            const status = document.getElementById('status');
-            const original = status.innerText;
+            const btn = document.getElementById('modal-data');
+            const originalText = btn.innerText;
+            // Provide a visual cue that copy worked without the blue box
             status.innerText = "COPIED TO CLIPBOARD";
-            setTimeout(() => status.innerText = original, 2000);
+            setTimeout(() => status.innerText = "System Online...", 2000);
         });
     }
 
@@ -190,7 +206,6 @@
                     
                     await saveTxn(blob, formatted);
                     status.innerText = "DATA DECRYPTED";
-                    // Auto-copy only on fresh extraction
                     navigator.clipboard.writeText(formatted); 
                     loader.style.display = "none";
                     return;
