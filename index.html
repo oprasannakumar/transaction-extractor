@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Share Target</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f4f7f6;
+        }
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        #preview {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        select, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-size: 1rem;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:disabled {
+            background-color: #ccc;
+        }
+        .status {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Share Image</h2>
+    
+    <img id="preview" src="" alt="Image Preview">
+    
+    <div id="setup-area">
+        <label for="model-select">Choose AI Model:</label>
+        <select id="model-select">
+            <option value="">-- Select a Model --</option>
+            <option value="gpt-4o">Groq llama-4-scout</option>
+            <option value="gemini-1-5">Gemini 2.5 Flash</option>
+            
+        </select>
+
+        <button id="upload-btn" disabled>Upload to Backend</button>
+    </div>
+
+    <p id="status-msg" class="status">Waiting for image...</p>
+</div>
+
+<script>
+    const preview = document.getElementById('preview');
+    const uploadBtn = document.getElementById('upload-btn');
+    const modelSelect = document.getElementById('model-select');
+    const statusMsg = document.getElementById('status-msg');
+    let sharedFile = null;
+
+    // 1. Handle incoming data from the Share Target
+    window.addEventListener('DOMContentLoaded', () => {
+        const parsedUrl = new URL(window.location);
+        
+        // When using 'method: POST' in manifest, data usually comes via Service Worker.
+        // For simplicity in this demo, we check if files were passed via the search params
+        // (Note: Advanced implementation requires Service Worker 'fetch' event handling)
+        
+        // Check if there is an image in the session (stored by service worker)
+        const imageBlob = sessionStorage.getItem('shared-image');
+        if (imageBlob) {
+            displayImage(imageBlob);
+        }
+    });
+
+    function displayImage(blob) {
+        sharedFile = blob;
+        preview.src = URL.createObjectURL(blob);
+        preview.style.display = 'block';
+        statusMsg.innerText = "Image received. Please select a model.";
+    }
+
+    // Enable button only when model is selected
+    modelSelect.addEventListener('change', () => {
+        uploadBtn.disabled = !modelSelect.value;
+    });
+
+    // 2. Upload Logic
+    uploadBtn.addEventListener('click', async () => {
+        const model = modelSelect.value;
+        if (!model) return;
+
+        const formData = new FormData();
+        formData.append('image', sharedFile);
+        formData.append('model', model);
+
+        try {
+            uploadBtn.innerText = "Uploading...";
+            uploadBtn.disabled = true;
+
+            // Replace with your actual backend URL
+            const response = await fetch('/upload-endpoint', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                statusMsg.innerText = "Success! Image sent to " + model;
+                uploadBtn.innerText = "Done";
+            } else {
+                throw new Error("Upload failed");
+            }
+        } catch (err) {
+            statusMsg.innerText = "Error: " + err.message;
+            uploadBtn.innerText = "Try Again";
+            uploadBtn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
