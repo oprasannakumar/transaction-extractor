@@ -3,47 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transaction Vault</title>
+    <title>Txn Vault | Neon</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f1f3f5; color: #333; margin: 0; }
-        .card { background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 450px; text-align: center; box-sizing: border-box; }
-        #preview { width: 100%; border-radius: 12px; margin-bottom: 15px; display: none; border: 1px solid #eee; }
+        :root {
+            --neon-blue: #00d2ff;
+            --neon-purple: #9d50bb;
+            --bg-dark: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
+            margin: 0; min-height: 100vh;
+        }
+
+        /* Futuristic Card */
+        .card { 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 25px; border-radius: 24px; 
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); 
+            width: 100%; max-width: 450px; text-align: center; box-sizing: border-box; 
+        }
+
+        h3 { 
+            margin: 0; font-weight: 800; letter-spacing: 2px; 
+            text-transform: uppercase; font-size: 1.2rem;
+            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        #preview { 
+            width: 100%; border-radius: 16px; margin-top: 20px;
+            display: none; border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
+        }
         
-        #status-container { display: flex; align-items: center; justify-content: center; margin: 15px 0; min-height: 24px; }
-        #status { font-size: 0.9rem; color: #555; font-weight: 500; }
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 18px; height: 18px; display: none; animation: spin 1s linear infinite; margin-right: 10px; }
+        /* Status & Loader */
+        #status-container { display: flex; align-items: center; justify-content: center; margin: 20px 0; }
+        #status { font-size: 0.85rem; color: #94a3b8; font-family: 'Courier New', monospace; }
+        .loader { 
+            border: 2px solid rgba(0, 210, 255, 0.1); border-top: 2px solid var(--neon-blue); 
+            border-radius: 50%; width: 14px; height: 14px; display: none; 
+            animation: spin 0.8s linear infinite; margin-right: 12px;
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; border-bottom: 2px solid #f1f3f5; padding-bottom: 10px; }
-        .btn-clear { background: #ff4757; color: white; border: none; padding: 5px 12px; border-radius: 8px; font-size: 0.75rem; cursor: pointer; }
+        /* History Section */
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; padding: 0 5px; }
+        .history-header h4 { margin: 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-clear { 
+            background: transparent; color: #f87171; border: 1px solid #f87171; 
+            padding: 4px 10px; border-radius: 6px; font-size: 0.65rem; cursor: pointer;
+            transition: 0.3s;
+        }
+        .btn-clear:hover { background: rgba(248, 113, 113, 0.1); }
+
         #history-list { width: 100%; margin-top: 15px; }
         
-        /* Compact List View */
-        .txn-item { background: #fff; border: 1px solid #eee; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; padding: 10px; cursor: pointer; }
-        .txn-thumb { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; margin-right: 12px; }
-        .txn-brief { flex: 1; text-align: left; font-size: 0.85rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .txn-item { 
+            background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); 
+            border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
+            padding: 12px; cursor: pointer; transition: 0.2s;
+        }
+        .txn-item:hover { background: rgba(255, 255, 255, 0.07); border-color: var(--neon-blue); }
+        .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid var(--glass-border); }
+        .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; }
 
-        /* Full Screen Modal */
-        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; flex-direction: column; overflow-y: auto; color: white; }
-        #modal-img { width: 100%; max-height: 60vh; object-fit: contain; margin-top: 20px; }
-        #modal-data { padding: 25px; font-family: monospace; line-height: 1.6; font-size: 1rem; text-align: left; background: #1a1a1a; border-radius: 20px 20px 0 0; margin-top: 20px; }
-        .close-btn { position: fixed; top: 20px; right: 20px; font-size: 2rem; color: white; font-weight: bold; cursor: pointer; text-shadow: 0 0 10px #000; }
+        /* Cyber Modal */
+        #modal { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(2, 6, 23, 0.98); z-index: 1000; 
+            flex-direction: column; overflow-y: auto;
+        }
+        #modal-img { 
+            width: 100%; max-height: 50vh; object-fit: contain; 
+            margin-top: 40px; border-bottom: 1px solid var(--glass-border);
+        }
+        #modal-data { 
+            padding: 30px; font-family: 'Courier New', monospace; line-height: 1.8; 
+            font-size: 0.95rem; text-align: left; color: var(--neon-blue);
+        }
+        .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2rem; color: white; cursor: pointer; opacity: 0.7; }
+        .close-btn:hover { opacity: 1; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h3 style="margin: 0;">Transaction Vault</h3>
+    <h3>Data Core</h3>
     <div id="status-container">
         <div id="loader" class="loader"></div>
-        <span id="status">Ready...</span>
+        <span id="status">System Online...</span>
     </div>
-    <img id="preview" src="" alt="Latest Preview">
+    <img id="preview" src="" alt="Latest Sync">
 
     <div class="history-header">
-        <h4 style="margin: 0;">Today's Log</h4>
-        <button class="btn-clear" onclick="clearHistory()">Clear All</button>
+        <h4>Today's Cache</h4>
+        <button class="btn-clear" onclick="clearHistory()">Wipe Logs</button>
     </div>
     <div id="history-list"></div>
 </div>
@@ -51,7 +114,7 @@
 <!-- Enlarge Modal -->
 <div id="modal" onclick="closeModal()">
     <span class="close-btn">&times;</span>
-    <img id="modal-img" src="" alt="Enlarged Txn">
+    <img id="modal-img" src="" alt="Decrypted Image">
     <div id="modal-data"></div>
 </div>
 
@@ -105,8 +168,8 @@
                 const div = document.createElement('div');
                 div.className = "txn-item";
                 const url = URL.createObjectURL(item.blob);
-                div.onclick = () => openModal(url, item.text);
-                div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.text.split('\n')[0]}...</div>`;
+                div.onclick = (e) => { e.stopPropagation(); openModal(url, item.text); };
+                div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.text.split('\n')[0]}</div>`;
                 list.appendChild(div);
             });
         };
@@ -116,7 +179,6 @@
         document.getElementById('modal-img').src = imgUrl;
         document.getElementById('modal-data').innerText = fullText;
         document.getElementById('modal').style.display = "flex";
-        // Auto-copy on open
         navigator.clipboard.writeText(fullText);
     }
 
@@ -131,7 +193,7 @@
                 const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
             });
             for (let model of ['gemini', 'groq']) {
-                status.innerText = `Using ${model.toUpperCase()}...`;
+                status.innerText = `SYNCING WITH ${model.toUpperCase()}...`;
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
                 const res = await resp.json();
                 if (res.status === "success") {
@@ -148,12 +210,12 @@
 🏷️ Category: ${d.category}
 🔗 Ref: ${d.refId}`;
                     await saveTxn(blob, formatted);
-                    status.innerText = "Success! Copied.";
+                    status.innerText = "DATA DECRYPTED & SAVED";
                     loader.style.display = "none";
                     return;
                 }
             }
-        } catch (e) { status.innerText = "Error."; }
+        } catch (e) { status.innerText = "LINK FAILURE"; }
         loader.style.display = "none";
     }
 
@@ -165,8 +227,9 @@
             const response = await cache.match('shared-image');
             if (response) {
                 const blob = await response.blob();
-                document.getElementById('preview').src = URL.createObjectURL(blob);
-                document.getElementById('preview').style.display = 'block';
+                const preview = document.getElementById('preview');
+                preview.src = URL.createObjectURL(blob);
+                preview.style.display = 'block';
                 await cache.delete('shared-image');
                 processExtraction(blob);
             }
@@ -174,7 +237,7 @@
     });
 
     async function clearHistory() {
-        if(!confirm("Clear today's logs?")) return;
+        if(!confirm("Purge all day logs?")) return;
         const db = await initDB();
         db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
         renderHistory();
