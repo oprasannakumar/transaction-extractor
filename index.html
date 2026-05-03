@@ -3,31 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Txn Vault | Batch Core</title>
+    <title>Txn Vault | Neon Batch Pro</title>
     <link rel="manifest" href="manifest.json">
     <style>
         :root {
-            --neon-blue: #00d2ff; --neon-purple: #9d50bb; --neon-green: #39ff14;
-            --neon-red: #ff3131; --bg-dark: #0f172a; --glass-bg: rgba(255, 255, 255, 0.05);
+            --neon-blue: #00d2ff;
+            --neon-purple: #9d50bb;
+            --neon-green: #39ff14;
+            --neon-red: #ff3131;
+            --bg-dark: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.05);
             --glass-border: rgba(255, 255, 255, 0.1);
         }
-        * { -webkit-tap-highlight-color: transparent; outline: none; box-sizing: border-box; }
+
+        /* Prevent blue tap highlights and selection artifacts */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            outline: none;
+            box-sizing: border-box;
+        }
+
         body { 
-            font-family: 'Segoe UI', Roboto, sans-serif; display: flex; flex-direction: column; 
-            align-items: center; padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; 
+            padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
             margin: 0; min-height: 85vh;
         }
+
         .card { 
             background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center; 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 85%; max-width: 450px; text-align: center; 
         }
+
         h3 { 
             margin: 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
             background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .preview-container { position: relative; margin-top: 20px; display: none; overflow: hidden; border-radius: 16px; border: 2px solid var(--neon-blue); }
+
+        /* Extraction Scan UI */
+        .preview-container { 
+            position: relative; margin-top: 20px; display: none; overflow: hidden; 
+            border-radius: 16px; border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.2);
+        }
         #preview { width: 100%; display: block; }
         .scan-line {
             position: absolute; top: 0; left: 0; width: 100%; height: 4px;
@@ -35,13 +56,19 @@
             animation: scan 2s linear infinite; z-index: 5;
         }
         @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+
         #status-container { display: flex; align-items: center; justify-content: center; margin: 20px 0; }
         #status { font-size: 0.8rem; color: #94a3b8; font-family: 'Courier New', monospace; text-transform: uppercase; }
-        
-        /* HEADER RESTRUCTURE */
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 85%; max-width: 450px; }
-        .btn-clear { background: transparent; color: #f87171; border: 1px solid #f87171; padding: 4px 12px; border-radius: 6px; font-size: 0.65rem; cursor: pointer; margin-left: auto; }
-        
+
+        /* History Header & List */
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 100%; max-width: 450px; }
+        .btn-clear { 
+            background: transparent; color: #f87171; border: 1px solid #f87171; 
+            padding: 4px 12px; border-radius: 6px; font-size: 0.65rem; 
+            cursor: pointer; margin-left: auto; transition: 0.2s;
+        }
+        .btn-clear:hover { background: rgba(248, 113, 113, 0.1); }
+
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; }
         .txn-item { 
             background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); 
@@ -52,18 +79,26 @@
         .txn-item.out { border-left: 4px solid var(--neon-red); }
         .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; }
         .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; overflow: hidden; }
-        .btn-delete { color: #64748b; font-size: 1.2rem; padding: 10px; cursor: pointer; }
-        
+        .btn-delete { color: #64748b; font-size: 1.2rem; padding: 10px; cursor: pointer; transition: 0.2s; }
+        .btn-delete:hover { color: var(--neon-red); }
+
+        /* Modal / Enlarge View */
         #modal { 
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; justify-content: flex-start;
         }
-        #modal-img { width: auto; max-width: 90%; max-height: 45vh; margin-top: 60px; border-radius: 16px; border: 2px solid var(--neon-blue); }
+        #modal-img { 
+            width: auto; max-width: 90%; max-height: 45vh; margin-top: 60px; 
+            border-radius: 16px; border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+        }
         #modal-data { 
             padding: 25px; font-family: 'Courier New', monospace; font-size: 0.9rem; color: var(--neon-blue);
-            background: rgba(255,255,255,0.03); margin: 20px; border-radius: 12px;
+            background: rgba(255,255,255,0.03); margin: 25px; border-radius: 12px;
             cursor: pointer; width: 85%; max-width: 400px; border: 1px solid var(--glass-border);
+            line-height: 1.6;
         }
+        #modal-data::after { content: "TAP TEXT TO COPY"; position: absolute; top: 10px; right: 12px; font-size: 0.6rem; color: #64748b; font-family: sans-serif; font-weight: bold; }
         .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; z-index: 1001; }
     </style>
 </head>
@@ -94,8 +129,11 @@
 </div>
 
 <script>
+    // 1. REGISTER SERVICE WORKER
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error', err));
+        });
     }
 
     const DB_NAME = "TxnVaultDB";
@@ -105,12 +143,14 @@
         groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
+    // 2. DB CORE
     const initDB = () => new Promise(res => {
         const req = indexedDB.open(DB_NAME, 1);
         req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
         req.onsuccess = e => res(e.target.result);
     });
 
+    // Housekeeping: Purge data not matching today's IST date
     async function performHousekeeping() {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
@@ -144,12 +184,17 @@
                 div.className = `txn-item ${item.direction === "IN" ? "in" : "out"}`;
                 const url = URL.createObjectURL(item.blob);
                 div.onclick = () => openModal(url, item.text);
-                div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.text.split('\n')[0]}<br><span style="font-size:0.7rem; color:#64748b">${item.text.split('\n')[4]}</span></div><div class="btn-delete" onclick="deleteTxn(${item.id}, event)">&times;</div>`;
+                div.innerHTML = `
+                    <img src="${url}" class="txn-thumb">
+                    <div class="txn-brief">${item.text.split('\n')[0]}<br><span style="font-size:0.7rem; color:#64748b">${item.text.split('\n')[4]}</span></div>
+                    <div class="btn-delete" onclick="deleteTxn(${item.id}, event)">&times;</div>
+                `;
                 list.appendChild(div);
             });
         };
     }
 
+    // 3. UI INTERACTIONS
     function openModal(imgUrl, fullText) {
         document.getElementById('modal-img').src = imgUrl;
         document.getElementById('modal-data').innerText = fullText;
@@ -160,24 +205,34 @@
 
     function copyData(event) {
         event.stopPropagation();
-        navigator.clipboard.writeText(document.getElementById('modal-data').innerText);
-        const status = document.getElementById('status');
-        status.innerText = "COPIED TO CLIPBOARD";
-        setTimeout(() => status.innerText = "System Ready", 1500);
+        const text = document.getElementById('modal-data').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const status = document.getElementById('status');
+            status.innerText = "COPIED TO CLIPBOARD";
+            setTimeout(() => status.innerText = "System Ready", 1500);
+        });
     }
 
-    // --- BATCH PROCESSING LOGIC ---
+    // 4. BATCH PROCESSING ENGINE
     async function processQueue(blobs) {
         const status = document.getElementById('status');
         const preview = document.getElementById('preview');
         const pCont = document.getElementById('p-cont');
         
+        pCont.style.display = 'block';
+
         for (let i = 0; i < blobs.length; i++) {
             const blob = blobs[i];
-            status.innerText = `PROCESSING ${i + 1}/${blobs.length}...`;
+            const currentNum = i + 1;
             
-            pCont.style.display = 'block';
+            // Validate Image Type
+            if (!blob.type.startsWith('image/')) {
+                status.innerText = `[${currentNum}/${blobs.length}] ERROR: INVALID FILE`;
+                continue;
+            }
+
             preview.src = URL.createObjectURL(blob);
+            status.innerText = `[${currentNum}/${blobs.length}] INITIALIZING...`;
 
             try {
                 const base64 = await new Promise(res => {
@@ -186,7 +241,7 @@
 
                 let success = false;
                 for (let model of ['gemini', 'groq']) {
-                    status.innerText = `[${i+1}/${blobs.length}] ${model.toUpperCase()} EXTRACTING...`;
+                    status.innerText = `[${currentNum}/${blobs.length}] DECRYPTING VIA ${model.toUpperCase()}...`;
                     const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
                     const res = await resp.json();
                     
@@ -198,31 +253,48 @@
                         break;
                     }
                 }
-                if (!success) status.innerText = `FAILED ON ITEM ${i+1}`;
-            } catch (e) { status.innerText = "CORE ERROR"; }
+                if (!success) status.innerText = `[${currentNum}/${blobs.length}] EXTRACTION FAILED`;
+            } catch (e) { status.innerText = `[${currentNum}/${blobs.length}] LINK FAILURE`; }
         }
-        status.innerText = "BATCH COMPLETE";
-        setTimeout(() => pCont.style.display = 'none', 3000);
+        status.innerText = "BATCH SYNC COMPLETE";
+        setTimeout(() => { pCont.style.display = 'none'; }, 3000);
     }
 
+    // 5. INITIALIZATION & SHARE HANDLING
     window.addEventListener('load', async () => {
         await performHousekeeping();
         const urlParams = new URLSearchParams(window.location.search);
+        
         if (urlParams.has('shared')) {
             const cache = await caches.open('shared-data');
             const keys = await cache.keys();
-            const blobs = [];
-            for (let key of keys) {
-                const resp = await cache.match(key);
-                blobs.push(await resp.blob());
-                await cache.delete(key);
+            
+            if (keys.length > 0) {
+                const blobs = [];
+                for (let key of keys) {
+                    const response = await cache.match(key);
+                    blobs.push(await response.blob());
+                    await cache.delete(key);
+                }
+                processQueue(blobs);
             }
-            if (blobs.length > 0) processQueue(blobs);
         }
     });
 
-    async function deleteTxn(id, e) { e.stopPropagation(); if(confirm("Delete?")) { const db = await initDB(); db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id); renderHistory(); } }
-    async function clearHistory() { if(confirm("Purge all?")) { const db = await initDB(); db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear(); renderHistory(); } }
+    async function deleteTxn(id, e) {
+        e.stopPropagation();
+        if(!confirm("Purge this log?")) return;
+        const db = await initDB();
+        db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
+        renderHistory();
+    }
+
+    async function clearHistory() {
+        if(!confirm("Purge all logs?")) return;
+        const db = await initDB();
+        db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
+        renderHistory();
+    }
 </script>
 </body>
 </html>
