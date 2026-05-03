@@ -22,8 +22,6 @@
         #status { font-size: 0.85rem; color: #666; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; width: 16px; height: 16px; display: none; animation: spin 1s linear infinite; margin-right: 8px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 12px; border: 1px solid #ccc; background: white; font-size: 0.9rem; appearance: none; }
     </style>
 </head>
 <body>
@@ -37,11 +35,6 @@
         <span id="status">Waiting for shared image...</span>
     </div>
 
-    <select id="model-select">
-        <option value="gemini">Gemini (Primary)</option>
-        <option value="groq">Groq (Secondary)</option>
-    </select>
-
     <button id="upload-btn" disabled>EXTRACT DATA</button>
 
     <div id="results-area">
@@ -51,7 +44,6 @@
 </div>
 
 <script>
-    // 1. SERVICE WORKER REGISTRATION
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js')
@@ -71,11 +63,9 @@
     const loader = document.getElementById('loader');
     const resultsArea = document.getElementById('results-area');
     const copyArea = document.getElementById('copy-area');
-    const modelSelect = document.getElementById('model-select');
     
     let sharedBlob = null;
 
-    // 2. HANDLE SHARED IMAGE
     window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
@@ -99,8 +89,6 @@
         reader.readAsDataURL(blob);
     });
 
-    // 3. UPLOAD AND FALLBACK LOGIC
-    // 3. UPLOAD AND FALLBACK LOGIC WITH AUTO-COPY
     uploadBtn.onclick = async () => {
         if (!sharedBlob) return;
 
@@ -110,9 +98,8 @@
         
         try {
             const base64Image = await blobToBase64(sharedBlob);
-            const selected = modelSelect.value;
-            const alternative = selected === 'gemini' ? 'groq' : 'gemini';
-            const attemptOrder = [selected, alternative];
+            // Forced Order: Gemini is primary, Groq is backup
+            const attemptOrder = ['gemini', 'groq'];
 
             for (let modelKey of attemptOrder) {
                 try {
@@ -141,37 +128,33 @@
 🏷️ Category: ${d.category}
 🔗 Ref: ${d.refId}`;
 
-                        // Update UI
                         copyArea.innerText = formattedText;
                         resultsArea.style.display = "block";
                         status.innerText = `Success (${modelKey.toUpperCase()}) - Copied!`;
 
-                        // --- AUTO-COPY TO CLIPBOARD ---
                         await navigator.clipboard.writeText(formattedText);
-                        
-                        return; // Success! Exit the function.
+                        return; 
                     } else {
                         throw new Error(result.data || "Parsing failed");
                     }
                 } catch (e) {
                     console.error(`${modelKey} failed:`, e);
-                    if (modelKey === attemptOrder[0]) {
-                        status.innerText = `${modelKey.toUpperCase()} failed. Trying fallback...`;
+                    if (modelKey === 'gemini') {
+                        status.innerText = "Gemini failed. Trying Groq fallback...";
                         await new Promise(r => setTimeout(r, 800));
                     } else {
-                        status.innerText = "Both models failed.";
+                        status.innerText = "Both extraction models failed.";
                     }
                 }
             }
         } catch (globalError) {
             status.innerText = "Error processing image.";
-            console.error(globalError);
         } finally {
             loader.style.display = "none";
             uploadBtn.disabled = false;
         }
     };
-    // 4. ONE-TAP COPY
+
     copyArea.onclick = () => {
         navigator.clipboard.writeText(copyArea.innerText).then(() => {
             const originalText = copyArea.innerText;
