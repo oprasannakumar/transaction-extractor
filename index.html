@@ -14,9 +14,10 @@
             --glass-border: rgba(255, 255, 255, 0.1);
         }
 
-        /* Prevent the blue tap highlight box on mobile */
+        /* Remove blue tap box and selection artifacts */
         * {
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
             outline: none;
         }
 
@@ -30,7 +31,7 @@
         .card { 
             background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 300px; text-align: center; 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 3000px; text-align: center; 
         }
 
         h3 { 
@@ -39,9 +40,9 @@
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
-        /* Border applied while fetching and in history preview */
+        /* Preview area border logic */
         #preview { 
-            width: 100%; border-radius: 16px; margin-top: 20px; display: none; 
+            max-width: 100%; height: auto; border-radius: 16px; margin-top: 20px; display: none; 
             border: 2px solid var(--neon-blue); box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
         }
         
@@ -73,11 +74,12 @@
             flex-direction: column; overflow-y: auto; align-items: center;
         }
         
-        /* Applied border to modal image to match the fetching preview */
+        /* Fixed Border Logic: width auto + max-width ensures border hugs the image edges */
         #modal-img { 
-            width: 90%; max-width: 400px; max-height: 50vh; object-fit: contain; 
+            width: auto; max-width: 90%; max-height: 50vh; object-fit: contain; 
             margin-top: 60px; border-radius: 16px;
             border: 2px solid var(--neon-blue); box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+            display: block;
         }
         
         #modal-data { 
@@ -179,9 +181,7 @@
         event.stopPropagation();
         const text = document.getElementById('modal-data').innerText;
         navigator.clipboard.writeText(text).then(() => {
-            const btn = document.getElementById('modal-data');
-            const originalText = btn.innerText;
-            // Provide a visual cue that copy worked without the blue box
+            const status = document.getElementById('status');
             status.innerText = "COPIED TO CLIPBOARD";
             setTimeout(() => status.innerText = "System Online...", 2000);
         });
