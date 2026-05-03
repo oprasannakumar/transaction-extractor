@@ -159,8 +159,13 @@
         }
     };
 
-    document.getElementById('monthly-btn').onclick = () => window.location.href = 'https://oprasannakumar.github.io/MonthlytransactionsGoogleSheets/';
-    document.getElementById('loan-btn').onclick = () => window.location.href = 'https://oprasannakumar.github.io/LoanTransferGoogleSheets/';
+    document.getElementById('monthly-btn').onclick = () => {
+    window.open('https://oprasannakumar.github.io/MonthlytransactionsGoogleSheets/', '_blank');
+};
+
+document.getElementById('loan-btn').onclick = () => {
+    window.open('https://oprasannakumar.github.io/LoanTransferGoogleSheets/', '_blank');
+};
 
     copyArea.onclick = () => {
         navigator.clipboard.writeText(copyArea.innerText).then(() => {
