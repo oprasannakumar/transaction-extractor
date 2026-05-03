@@ -8,12 +8,21 @@
         body { font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #f8f9fa; color: #333; }
         .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); width: 100%; max-width: 400px; text-align: center; }
         #preview { width: 100%; border-radius: 12px; margin: 20px 0; display: none; border: 1px solid #eee; }
-        button { width: 100%; padding: 14px; margin: 12px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 1rem; outline: none; background: #007bff; color: white; border: none; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #0056b3; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        button { width: 100%; padding: 14px; margin: 12px 0; border-radius: 10px; border: 1px solid #ddd; font-size: 1rem; outline: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        #upload-btn { background: #007bff; color: white; border: none; }
+        #upload-btn:hover { background: #0056b3; }
+        #upload-btn:disabled { background: #ccc; cursor: not-allowed; }
+        
+        #copy-btn { background: #28a745; color: white; border: none; display: none; margin-top: 10px; }
+        #copy-btn:active { transform: scale(0.98); background: #218838; }
+
         #status { font-size: 0.9rem; color: #666; margin-top: 10px; }
-        #results-area { display: none; text-align: left; margin-top: 20px; padding: 15px; background: #f0f7ff; border-radius: 12px; border: 1px solid #d0e3ff; }
-        pre { white-space: pre-wrap; font-size: 0.85rem; font-family: monospace; overflow-x: auto; }
+        
+        #results-area { display: none; text-align: left; margin-top: 20px; padding: 15px; background: #fff; border-radius: 12px; border: 2px dashed #007bff; }
+        .data-row { margin-bottom: 8px; font-size: 0.9rem; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; }
+        .label { font-weight: bold; color: #555; text-transform: uppercase; font-size: 0.75rem; }
+        .value { color: #000; display: block; word-break: break-all; }
     </style>
 </head>
 <body>
@@ -22,34 +31,29 @@
     <h2 style="margin-top:0">Transaction Extractor</h2>
     <img id="preview" src="" alt="Shared Image Preview">
     
-    <div id="selection-area">
-        <button id="upload-btn" disabled>Extract & Save to Sheet</button>
-    </div>
+    <button id="upload-btn" disabled>Extract & Save</button>
 
     <div id="results-area">
-        <h3 style="margin-top:0; font-size:1rem;">Extracted Data</h3>
-        <pre id="json-output"></pre>
+        <div id="data-content">
+            </div>
+        <button id="copy-btn">Tap to Copy All</button>
     </div>
-    <p id="status">Waiting for image share...</p>
+    
+    <p id="status">Waiting for image...</p>
 </div>
 
 <script>
-    const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec";
+    const GAS_ENDPOINT = "YOUR_GOOGLE_SCRIPT_URL_HERE";
     const preview = document.getElementById('preview');
     const uploadBtn = document.getElementById('upload-btn');
+    const copyBtn = document.getElementById('copy-btn');
     const status = document.getElementById('status');
     const resultsArea = document.getElementById('results-area');
-    const jsonOutput = document.getElementById('json-output');
+    const dataContent = document.getElementById('data-content');
+    
     let sharedBlob = null;
+    let currentExtractedData = "";
 
-    // Register Service Worker
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').catch(err => console.error("SW failed:", err));
-        });
-    }
-
-    // Load shared image from Cache
     window.addEventListener('load', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
@@ -59,14 +63,12 @@
                 sharedBlob = await response.blob();
                 preview.src = URL.createObjectURL(sharedBlob);
                 preview.style.display = 'block';
-                status.innerText = "Image received. Ready to extract.";
+                status.innerText = "Ready to process.";
                 uploadBtn.disabled = false;
-                await cache.delete('shared-image');
             }
         }
     });
 
-    // Convert Blob to Base64 (Required by your Google Script)
     const blobToBase64 = blob => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(',')[1]);
@@ -77,38 +79,58 @@
     uploadBtn.onclick = async () => {
         if (!sharedBlob) return;
         
-        status.innerText = "Analyzing with Groq AI...";
+        status.innerText = "Uploading to Google Sheet...";
         uploadBtn.disabled = true;
-        resultsArea.style.display = 'none';
 
         try {
             const base64Image = await blobToBase64(sharedBlob);
             
-            // Construct the payload your script expects
-            const payload = {
-                image: base64Image
-            };
-
-            const res = await fetch(GAS_ENDPOINT, {
+            // Send to Google Script
+            await fetch(GAS_ENDPOINT, {
                 method: 'POST',
-                mode: 'no-cors', // Google Scripts often require no-cors for simple redirects
-                body: JSON.stringify(payload)
+                mode: 'no-cors', 
+                body: JSON.stringify({ image: base64Image })
             });
 
-            // Note: Since Google Scripts use redirects, 'no-cors' mode 
-            // won't let us read the JSON response directly in the browser.
-            // If you need to see the result, you must use a CORS proxy or 
-            // handle the redirect in the script (return JSON properly).
+            // Since we can't read JSON back in 'no-cors' mode easily, 
+            // we notify the user it's done. 
+            status.innerText = "Sent! Check your Sheet.";
             
-            status.innerText = "Check your Google Sheet! Data sent successfully.";
-            uploadBtn.innerText = "Process Another";
+            // Show placeholders/format (Update this if you implement a CORS-proxy)
+            renderFormat();
+            
+            uploadBtn.innerText = "Process New Image";
             uploadBtn.disabled = false;
-
         } catch (e) {
-            console.error(e);
             status.innerText = "Error: " + e.message;
             uploadBtn.disabled = false;
         }
+    };
+
+    function renderFormat() {
+        // This function prepares the UI layout for the data
+        resultsArea.style.display = 'block';
+        copyBtn.style.display = 'block';
+        
+        // Note: Real data would be injected here if the API returned it
+        // For 'no-cors', you might display a confirmation message instead
+        dataContent.innerHTML = `
+            <div class="data-row"><span class="label">Status</span><span class="value">Transaction Uploaded</span></div>
+            <div class="data-row"><span class="label">Action</span><span class="value">Saved to Google Sheet</span></div>
+        `;
+    }
+
+    copyBtn.onclick = () => {
+        const textToCopy = dataContent.innerText;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = "✅ Copied!";
+            copyBtn.style.background = "#1e7e34";
+            setTimeout(() => {
+                copyBtn.innerText = originalText;
+                copyBtn.style.background = "#28a745";
+            }, 2000);
+        });
     };
 </script>
 </body>
