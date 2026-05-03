@@ -15,37 +15,29 @@
         }
 
         body { 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
             display: flex; flex-direction: column; align-items: center; 
             padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
             margin: 0; min-height: 100vh;
         }
 
-        /* Futuristic Card */
         .card { 
-            background: var(--glass-bg); 
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            padding: 25px; border-radius: 24px; 
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); 
-            width: 100%; max-width: 450px; text-align: center; box-sizing: border-box; 
+            background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center; 
         }
 
         h3 { 
-            margin: 0; font-weight: 800; letter-spacing: 2px; 
-            text-transform: uppercase; font-size: 1.2rem;
+            margin: 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
             background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
         #preview { 
-            width: 100%; border-radius: 16px; margin-top: 20px;
-            display: none; border: 2px solid var(--neon-blue);
-            box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
+            width: 100%; border-radius: 16px; margin-top: 20px; display: none; 
+            border: 2px solid var(--neon-blue); box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);
         }
         
-        /* Status & Loader */
         #status-container { display: flex; align-items: center; justify-content: center; margin: 20px 0; }
         #status { font-size: 0.85rem; color: #94a3b8; font-family: 'Courier New', monospace; }
         .loader { 
@@ -55,43 +47,33 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* History Section */
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; padding: 0 5px; }
-        .history-header h4 { margin: 0; font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
-        .btn-clear { 
-            background: transparent; color: #f87171; border: 1px solid #f87171; 
-            padding: 4px 10px; border-radius: 6px; font-size: 0.65rem; cursor: pointer;
-            transition: 0.3s;
-        }
-        .btn-clear:hover { background: rgba(248, 113, 113, 0.1); }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; }
+        .btn-clear { background: transparent; color: #f87171; border: 1px solid #f87171; padding: 4px 10px; border-radius: 6px; font-size: 0.65rem; cursor: pointer; }
 
         #history-list { width: 100%; margin-top: 15px; }
-        
         .txn-item { 
             background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); 
             border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
-            padding: 12px; cursor: pointer; transition: 0.2s;
+            padding: 12px; cursor: pointer;
         }
-        .txn-item:hover { background: rgba(255, 255, 255, 0.07); border-color: var(--neon-blue); }
-        .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; border: 1px solid var(--glass-border); }
+        .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; }
         .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; }
 
-        /* Cyber Modal */
+        /* Modal - Enlarge Only */
         #modal { 
             display: none; position: fixed; inset: 0; 
             background: rgba(2, 6, 23, 0.98); z-index: 1000; 
             flex-direction: column; overflow-y: auto;
         }
-        #modal-img { 
-            width: 100%; max-height: 50vh; object-fit: contain; 
-            margin-top: 40px; border-bottom: 1px solid var(--glass-border);
-        }
+        #modal-img { width: 100%; max-height: 50vh; object-fit: contain; margin-top: 40px; }
         #modal-data { 
             padding: 30px; font-family: 'Courier New', monospace; line-height: 1.8; 
             font-size: 0.95rem; text-align: left; color: var(--neon-blue);
+            background: rgba(255,255,255,0.02); margin: 20px; border-radius: 12px;
+            cursor: pointer; position: relative;
         }
-        .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2rem; color: white; cursor: pointer; opacity: 0.7; }
-        .close-btn:hover { opacity: 1; }
+        #modal-data::after { content: "Tap text to copy"; position: absolute; bottom: 8px; right: 12px; font-size: 0.6rem; color: #64748b; font-family: sans-serif; }
+        .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; z-index: 1001; }
     </style>
 </head>
 <body>
@@ -105,24 +87,19 @@
     <img id="preview" src="" alt="Latest Sync">
 
     <div class="history-header">
-        <h4>Today's Cache</h4>
+        <h4 style="margin:0; font-size: 0.9rem; color: #64748b;">Daily Cache</h4>
         <button class="btn-clear" onclick="clearHistory()">Wipe Logs</button>
     </div>
     <div id="history-list"></div>
 </div>
 
-<!-- Enlarge Modal -->
-<div id="modal" onclick="closeModal()">
-    <span class="close-btn">&times;</span>
-    <img id="modal-img" src="" alt="Decrypted Image">
-    <div id="modal-data"></div>
+<div id="modal">
+    <span class="close-btn" onclick="closeModal()">&times;</span>
+    <img id="modal-img" src="" alt="Enlarged Image">
+    <div id="modal-data" onclick="copyData(event)"></div>
 </div>
 
 <script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
-    }
-
     const DB_NAME = "TxnVaultDB";
     const STORE_NAME = "transactions";
     const endpoints = {
@@ -168,7 +145,7 @@
                 const div = document.createElement('div');
                 div.className = "txn-item";
                 const url = URL.createObjectURL(item.blob);
-                div.onclick = (e) => { e.stopPropagation(); openModal(url, item.text); };
+                div.onclick = () => openModal(url, item.text);
                 div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.text.split('\n')[0]}</div>`;
                 list.appendChild(div);
             });
@@ -179,10 +156,20 @@
         document.getElementById('modal-img').src = imgUrl;
         document.getElementById('modal-data').innerText = fullText;
         document.getElementById('modal').style.display = "flex";
-        navigator.clipboard.writeText(fullText);
     }
 
     function closeModal() { document.getElementById('modal').style.display = "none"; }
+
+    function copyData(event) {
+        event.stopPropagation();
+        const text = document.getElementById('modal-data').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const status = document.getElementById('status');
+            const original = status.innerText;
+            status.innerText = "COPIED TO CLIPBOARD";
+            setTimeout(() => status.innerText = original, 2000);
+        });
+    }
 
     async function processExtraction(blob) {
         const loader = document.getElementById('loader');
@@ -199,18 +186,12 @@
                 if (res.status === "success") {
                     const d = res.data;
                     const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
-                    const formatted = `📱 App: ${d.app}
-👤 Name: ${d.name}
-🆔 ID: ${d.txnId}
-📝 Msg: ${d.imageMessage}
-💰 Amount: ${d.amount}
-📊 Direction: ${dirEmoji}
-⇄ Type: ${d.type}
-🏢 Account: ${d.account}
-🏷️ Category: ${d.category}
-🔗 Ref: ${d.refId}`;
+                    const formatted = `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${dirEmoji}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`;
+                    
                     await saveTxn(blob, formatted);
-                    status.innerText = "DATA DECRYPTED & SAVED";
+                    status.innerText = "DATA DECRYPTED";
+                    // Auto-copy only on fresh extraction
+                    navigator.clipboard.writeText(formatted); 
                     loader.style.display = "none";
                     return;
                 }
@@ -227,9 +208,8 @@
             const response = await cache.match('shared-image');
             if (response) {
                 const blob = await response.blob();
-                const preview = document.getElementById('preview');
-                preview.src = URL.createObjectURL(blob);
-                preview.style.display = 'block';
+                document.getElementById('preview').src = URL.createObjectURL(blob);
+                document.getElementById('preview').style.display = 'block';
                 await cache.delete('shared-image');
                 processExtraction(blob);
             }
@@ -237,7 +217,7 @@
     });
 
     async function clearHistory() {
-        if(!confirm("Purge all day logs?")) return;
+        if(!confirm("Purge all logs?")) return;
         const db = await initDB();
         db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
         renderHistory();
