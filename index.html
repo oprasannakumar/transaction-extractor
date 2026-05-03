@@ -100,6 +100,7 @@
     });
 
     // 3. UPLOAD AND FALLBACK LOGIC
+    // 3. UPLOAD AND FALLBACK LOGIC WITH AUTO-COPY
     uploadBtn.onclick = async () => {
         if (!sharedBlob) return;
 
@@ -128,7 +129,7 @@
                         const d = result.data;
                         const dirEmoji = d.direction === "IN" ? "🟢 IN" : "🔴 OUT";
 
-                        copyArea.innerText = `📅 Date: ${d.date}
+                        const formattedText = `📅 Date: ${d.date}
 📱 App: ${d.app}
 👤 Name: ${d.name}
 🆔 ID: ${d.txnId}
@@ -140,8 +141,14 @@
 🏷️ Category: ${d.category}
 🔗 Ref: ${d.refId}`;
 
+                        // Update UI
+                        copyArea.innerText = formattedText;
                         resultsArea.style.display = "block";
-                        status.innerText = `Success (${modelKey.toUpperCase()})`;
+                        status.innerText = `Success (${modelKey.toUpperCase()}) - Copied!`;
+
+                        // --- AUTO-COPY TO CLIPBOARD ---
+                        await navigator.clipboard.writeText(formattedText);
+                        
                         return; // Success! Exit the function.
                     } else {
                         throw new Error(result.data || "Parsing failed");
@@ -164,7 +171,6 @@
             uploadBtn.disabled = false;
         }
     };
-
     // 4. ONE-TAP COPY
     copyArea.onclick = () => {
         navigator.clipboard.writeText(copyArea.innerText).then(() => {
