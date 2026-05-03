@@ -45,11 +45,18 @@
     let sharedBlob = null;
 
     // 1. Register Service Worker with specific scope
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js', { scope: repoPath })
-            .then(() => console.log("SW Registered for " + repoPath))
-            .catch(err => console.error("SW Registration failed:", err));
-    }
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: '/transaction-extractor/' })
+            .then(reg => {
+                console.log("Service Worker registered with scope:", reg.scope);
+            })
+            .catch(err => {
+                console.error("Service Worker registration failed:", err);
+            });
+    });
+}
 
     // 2. Retrieve Shared Image from Cache on Page Load
     window.addEventListener('load', async () => {
