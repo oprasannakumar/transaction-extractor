@@ -249,32 +249,79 @@
     }
 
     // --- SHARE INITIALIZATION ---
-    window.addEventListener('load', async () => {
-        updateModeUI();
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('shared')) {
-            const cache = await caches.open('shared-data');
-            const keys = await cache.keys();
-            const mode = localStorage.getItem('txnVaultMode') || 'standard';
+    // --- UPDATED SHARE INITIALIZATION ---
+window.addEventListener('load', async () => {
+    updateModeUI();
+    
+    // 1. Run Housekeeping to wipe old IST data
+    await performHousekeeping();
 
-            for (let key of keys) {
-                const resp = await cache.match(key);
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('shared')) {
+        const cache = await caches.open('shared-data');
+        const keys = await cache.keys();
+        const mode = localStorage.getItem('txnVaultMode') || 'standard';
+
+        // Use a Set to ensure we don't process duplicate keys
+        const uniqueKeys = [...new Set(keys.map(k => k.url))];
+        
+        if (uniqueKeys.length > 0) {
+            const status = document.getElementById('status');
+            status.innerText = `LINKING ${uniqueKeys.length} IMAGE(S)...`;
+
+            for (let keyUrl of uniqueKeys) {
+                const resp = await cache.match(keyUrl);
+                if (!resp) continue;
+
                 const blob = await resp.blob();
-                await cache.delete(key);
+                // CRITICAL: Delete from cache immediately after retrieving
+                await cache.delete(keyUrl);
 
-                if(mode === 'batch') {
-                    await saveTxn(blob, "", "", 'pending');
+                if (mode === 'batch') {
+                    // SILENT SAVE: Don't trigger renderHistory inside the loop
+                    await saveTxn(blob, "", "", 'pending', false);
                 } else {
                     document.getElementById('p-cont').style.display = 'block';
                     document.getElementById('preview').src = URL.createObjectURL(blob);
                     const res = await runExtraction(blob);
-                    if(res) await saveTxn(blob, res.formatted, res.direction);
+                    if (res) await saveTxn(blob, res.formatted, res.direction, 'success', true);
                     document.getElementById('p-cont').style.display = 'none';
                 }
             }
+            
+            // Clean the URL so a manual refresh doesn't re-trigger share logic
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            // Final render after all items in batch are added
+            renderHistory();
+            checkPending();
         }
+    } else {
         renderHistory();
+    }
+});
+
+// --- UPDATED SAVE FUNCTION ---
+// Added 'shouldRender' flag to prevent multiple UI refreshes in a loop
+async function saveTxn(blob, text, direction, status = 'success', shouldRender = true) {
+    const db = await initDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    
+    await store.add({ 
+        blob, 
+        text, 
+        direction, 
+        status, 
+        timestamp: Date.now() 
     });
+
+    if (shouldRender) {
+        renderHistory();
+        checkPending();
+    }
+}
+
 
     function openModal(img, text) {
         document.getElementById('modal-img').src = img;
