@@ -281,7 +281,26 @@
         navigator.clipboard.writeText(text);
     }
     function closeModal() { document.getElementById('modal').style.display = "none"; }
-    function clearHistory() { if(confirm("Purge All?")) { initDB().then(db => db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear().then(renderHistory)); } }
+    async function clearHistory() { 
+    if(confirm("Purge All?")) { 
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        
+        // Clear the store
+        const request = store.clear();
+        
+        request.onsuccess = () => {
+            // 1. Clear the visual list
+            document.getElementById('history-list').innerHTML = "";
+            // 2. Hide the 'Extract All' button if it was showing
+            checkPending(); 
+            // 3. Reset status
+            document.getElementById('status').innerText = "System Purged";
+        };
+    } 
+}
+
 </script>
 </body>
 </html>
