@@ -89,6 +89,14 @@
         #modal-img { max-width: 90%; border-radius: 16px; border: 2px solid var(--neon-blue); }
         #modal-data { padding: 30px; color: var(--neon-blue); font-family: monospace; width: 85%; line-height: 1.6; white-space: pre-wrap; }
         .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; }
+.txn-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.txn-item button:hover {
+    background: rgba(248, 113, 113, 0.4) !important;
+}
+
     </style>
 </head>
 <body>
@@ -203,6 +211,23 @@
     };
 }
 
+async function deleteItem(event, id) {
+    event.stopPropagation(); // Prevents the modal from opening
+    
+    if(confirm("Delete this record?")) {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        
+        const req = store.delete(id);
+        
+        req.onsuccess = () => {
+            renderHistory();
+            checkPending();
+            document.getElementById('status').innerText = "Item Removed";
+        };
+    }
+}
 
     async function runExtraction(blob) {
         try {
