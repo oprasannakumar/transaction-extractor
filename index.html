@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Txn Vault | Neon Batch Pro</title>
+    <title>Txn Vault | Neon Pro</title>
     <link rel="manifest" href="manifest.json">
     <style>
         :root {
@@ -16,38 +16,51 @@
             --glass-border: rgba(255, 255, 255, 0.1);
         }
 
-        /* Prevent blue tap highlights and selection artifacts */
-        * {
-            -webkit-tap-highlight-color: transparent;
-            -webkit-touch-callout: none;
-            outline: none;
-            box-sizing: border-box;
-        }
+        * { -webkit-tap-highlight-color: transparent; outline: none; box-sizing: border-box; }
 
         body { 
             font-family: 'Segoe UI', Roboto, sans-serif; 
             display: flex; flex-direction: column; align-items: center; 
             padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
-            margin: 0; min-height: 85vh;
+            margin: 0; min-height: 100vh;
         }
 
         .card { 
             background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 85%; max-width: 450px; text-align: center; 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center; 
         }
 
         h3 { 
-            margin: 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
+            margin: 0 0 20px 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
             background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
+        /* --- SEGMENTED TOGGLE --- */
+        .mode-selector {
+            display: flex; background: rgba(255,255,255,0.05); padding: 4px;
+            border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 20px;
+        }
+        .mode-btn {
+            flex: 1; padding: 10px; border: none; background: transparent;
+            color: #64748b; font-size: 0.75rem; font-weight: bold; cursor: pointer;
+            transition: 0.3s; border-radius: 8px; text-transform: uppercase;
+        }
+        .mode-btn.active { background: var(--neon-blue); color: white; box-shadow: 0 0 10px rgba(0, 210, 255, 0.4); }
+
+        #extract-all-btn {
+            display: none; width: 100%; padding: 14px; margin-bottom: 15px;
+            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
+            border: none; border-radius: 12px; color: white; font-weight: bold;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 0 20px rgba(0, 210, 255, 0.3);
+        }
+
         /* Extraction Scan UI */
         .preview-container { 
-            position: relative; margin-top: 20px; display: none; overflow: hidden; 
+            position: relative; margin-top: 10px; display: none; overflow: hidden; 
             border-radius: 16px; border: 2px solid var(--neon-blue);
-            box-shadow: 0 0 15px rgba(0, 210, 255, 0.2);
         }
         #preview { width: 100%; display: block; }
         .scan-line {
@@ -57,48 +70,28 @@
         }
         @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
 
-        #status-container { display: flex; align-items: center; justify-content: center; margin: 20px 0; }
-        #status { font-size: 0.8rem; color: #94a3b8; font-family: 'Courier New', monospace; text-transform: uppercase; }
+        #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; }
 
-        /* History Header & List */
+        /* History */
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 100%; max-width: 450px; }
-        .btn-clear { 
-            background: transparent; color: #f87171; border: 1px solid #f87171; 
-            padding: 4px 12px; border-radius: 6px; font-size: 0.65rem; 
-            cursor: pointer; margin-left: auto; transition: 0.2s;
-        }
-        .btn-clear:hover { background: rgba(248, 113, 113, 0.1); }
-
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; }
         .txn-item { 
             background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); 
             border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
-            padding: 12px; cursor: pointer; position: relative;
+            padding: 12px; cursor: pointer; transition: 0.2s;
         }
+        .txn-item.pending { border-left: 4px solid var(--neon-purple); opacity: 0.7; }
         .txn-item.in { border-left: 4px solid var(--neon-green); }
         .txn-item.out { border-left: 4px solid var(--neon-red); }
         .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; }
-        .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; overflow: hidden; }
-        .btn-delete { color: #64748b; font-size: 1.2rem; padding: 10px; cursor: pointer; transition: 0.2s; }
-        .btn-delete:hover { color: var(--neon-red); }
-
-        /* Modal / Enlarge View */
+        .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; }
+        
         #modal { 
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
-            z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; justify-content: flex-start;
+            z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding-top: 60px;
         }
-        #modal-img { 
-            width: auto; max-width: 90%; max-height: 45vh; margin-top: 60px; 
-            border-radius: 16px; border: 2px solid var(--neon-blue);
-            box-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
-        }
-        #modal-data { 
-            padding: 25px; font-family: 'Courier New', monospace; font-size: 0.9rem; color: var(--neon-blue);
-            background: rgba(255,255,255,0.03); margin: 25px; border-radius: 12px;
-            cursor: pointer; width: 85%; max-width: 400px; border: 1px solid var(--glass-border);
-            line-height: 1.6;
-        }
-        #modal-data::after { content: "TAP TEXT TO COPY"; position: absolute; top: 10px; right: 12px; font-size: 0.6rem; color: #64748b; font-family: sans-serif; font-weight: bold; }
+        #modal-img { max-width: 90%; border-radius: 16px; border: 2px solid var(--neon-blue); box-shadow: 0 0 20px rgba(0, 210, 255, 0.4); }
+        #modal-data { padding: 30px; color: var(--neon-blue); font-family: monospace; width: 85%; line-height: 1.6; }
         .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; z-index: 1001; }
     </style>
 </head>
@@ -106,30 +99,36 @@
 
 <div class="card">
     <h3>Data Core</h3>
-    <div id="status-container">
-        <span id="status">System Ready</span>
+    
+    <div class="mode-selector">
+        <button class="mode-btn" id="btn-standard" onclick="setMode('standard')">Standard</button>
+        <button class="mode-btn" id="btn-batch" onclick="setMode('batch')">Batch</button>
     </div>
+
+    <button id="extract-all-btn" onclick="processBatchQueue()">Extract All Pending</button>
+
+    <div id="status">System Online</div>
     
     <div class="preview-container" id="p-cont">
-        <div class="scan-line" id="scan-bar"></div>
+        <div class="scan-line"></div>
         <img id="preview" src="" alt="Syncing...">
     </div>
 
     <div class="history-header">
-        <h4 style="margin:0; font-size: 0.8rem; color: #64748b; letter-spacing: 1px;">DAILY CACHE</h4>
-        <button class="btn-clear" onclick="clearHistory()">PURGE ALL</button>
+        <h4 style="margin:0; font-size: 0.8rem; color: #64748b; letter-spacing: 1px;">CACHE</h4>
+        <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
     </div>
     <div id="history-list"></div>
 </div>
 
-<div id="modal">
-    <span class="close-btn" onclick="closeModal()">&times;</span>
-    <img id="modal-img" src="" alt="View">
-    <div id="modal-data" onclick="copyData(event)"></div>
+<div id="modal" onclick="closeModal()">
+    <span class="close-btn">&times;</span>
+    <img id="modal-img" src="">
+    <div id="modal-data"></div>
 </div>
 
 <script>
-    // 1. REGISTER SERVICE WORKER
+    // --- SERVICE WORKER REGISTRATION ---
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error', err));
@@ -143,34 +142,40 @@
         groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
-    // 2. DB CORE
     const initDB = () => new Promise(res => {
         const req = indexedDB.open(DB_NAME, 1);
         req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
         req.onsuccess = e => res(e.target.result);
     });
 
-    // Housekeeping: Purge data not matching today's IST date
-    async function performHousekeeping() {
+    // --- MODE MANAGEMENT ---
+    function setMode(mode) {
+        localStorage.setItem('txnVaultMode', mode);
+        updateModeUI();
+    }
+
+    function updateModeUI() {
+        const mode = localStorage.getItem('txnVaultMode') || 'standard';
+        document.getElementById('btn-standard').classList.toggle('active', mode === 'standard');
+        document.getElementById('btn-batch').classList.toggle('active', mode === 'batch');
+        checkPending();
+    }
+
+    async function checkPending() {
         const db = await initDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        const req = store.getAll();
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         req.onsuccess = () => {
-            const currentISTDate = new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' });
-            req.result.forEach(item => {
-                const itemDate = new Date(item.timestamp).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' });
-                if (itemDate !== currentISTDate) store.delete(item.id);
-            });
-            renderHistory();
+            const hasPending = req.result.some(i => i.status === 'pending');
+            document.getElementById('extract-all-btn').style.display = hasPending ? 'block' : 'none';
         };
     }
 
-    async function saveTxn(blob, text, direction) {
+    async function saveTxn(blob, text, direction, status = 'success') {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).add({ blob, text, direction, timestamp: Date.now() });
+        tx.objectStore(STORE_NAME).add({ blob, text, direction, status, timestamp: Date.now() });
         renderHistory();
+        checkPending();
     }
 
     async function renderHistory() {
@@ -181,120 +186,104 @@
         req.onsuccess = () => {
             req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
-                div.className = `txn-item ${item.direction === "IN" ? "in" : "out"}`;
+                div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
                 const url = URL.createObjectURL(item.blob);
-                div.onclick = () => openModal(url, item.text);
-                div.innerHTML = `
-                    <img src="${url}" class="txn-thumb">
-                    <div class="txn-brief">${item.text.split('\n')[0]}<br><span style="font-size:0.7rem; color:#64748b">${item.text.split('\n')[4]}</span></div>
-                    <div class="btn-delete" onclick="deleteTxn(${item.id}, event)">&times;</div>
-                `;
+                div.onclick = () => { if(item.status !== 'pending') openModal(url, item.text); };
+                div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0]}</div>`;
                 list.appendChild(div);
             });
         };
     }
 
-    // 3. UI INTERACTIONS
-    function openModal(imgUrl, fullText) {
-        document.getElementById('modal-img').src = imgUrl;
-        document.getElementById('modal-data').innerText = fullText;
-        document.getElementById('modal').style.display = "flex";
-    }
+    async function processBatchQueue() {
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
 
-    function closeModal() { document.getElementById('modal').style.display = "none"; }
+        req.onsuccess = async () => {
+            const pending = req.result.filter(i => i.status === 'pending');
+            if(pending.length === 0) return;
 
-    function copyData(event) {
-        event.stopPropagation();
-        const text = document.getElementById('modal-data').innerText;
-        navigator.clipboard.writeText(text).then(() => {
-            const status = document.getElementById('status');
-            status.innerText = "COPIED TO CLIPBOARD";
-            setTimeout(() => status.innerText = "System Ready", 1500);
-        });
-    }
+            const btn = document.getElementById('extract-all-btn');
+            btn.disabled = true;
+            document.getElementById('p-cont').style.display = 'block';
 
-    // 4. BATCH PROCESSING ENGINE
-    async function processQueue(blobs) {
-        const status = document.getElementById('status');
-        const preview = document.getElementById('preview');
-        const pCont = document.getElementById('p-cont');
-        
-        pCont.style.display = 'block';
-
-        for (let i = 0; i < blobs.length; i++) {
-            const blob = blobs[i];
-            const currentNum = i + 1;
-            
-            // Validate Image Type
-            if (!blob.type.startsWith('image/')) {
-                status.innerText = `[${currentNum}/${blobs.length}] ERROR: INVALID FILE`;
-                continue;
-            }
-
-            preview.src = URL.createObjectURL(blob);
-            status.innerText = `[${currentNum}/${blobs.length}] INITIALIZING...`;
-
-            try {
-                const base64 = await new Promise(res => {
-                    const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
-                });
-
-                let success = false;
-                for (let model of ['gemini', 'groq']) {
-                    status.innerText = `[${currentNum}/${blobs.length}] DECRYPTING VIA ${model.toUpperCase()}...`;
-                    const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
-                    const res = await resp.json();
-                    
-                    if (res.status === "success") {
-                        const d = res.data;
-                        const formatted = `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`;
-                        await saveTxn(blob, formatted, d.direction);
-                        success = true;
-                        break;
-                    }
+            for (let item of pending) {
+                document.getElementById('preview').src = URL.createObjectURL(item.blob);
+                const res = await runExtraction(item.blob);
+                if(res) {
+                    const updateTx = db.transaction(STORE_NAME, "readwrite");
+                    const updateStore = updateTx.objectStore(STORE_NAME);
+                    updateStore.put({ ...item, text: res.formatted, direction: res.direction, status: 'success' });
+                    await new Promise(r => setTimeout(r, 500));
                 }
-                if (!success) status.innerText = `[${currentNum}/${blobs.length}] EXTRACTION FAILED`;
-            } catch (e) { status.innerText = `[${currentNum}/${blobs.length}] LINK FAILURE`; }
-        }
-        status.innerText = "BATCH SYNC COMPLETE";
-        setTimeout(() => { pCont.style.display = 'none'; }, 3000);
+            }
+            
+            document.getElementById('p-cont').style.display = 'none';
+            btn.disabled = false;
+            document.getElementById('status').innerText = "Batch Complete";
+            renderHistory();
+            checkPending();
+        };
     }
 
-    // 5. INITIALIZATION & SHARE HANDLING
+    async function runExtraction(blob) {
+        try {
+            const base64 = await new Promise(res => {
+                const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
+            });
+            for (let model of ['gemini', 'groq']) {
+                document.getElementById('status').innerText = `Attempting ${model.toUpperCase()}...`;
+                const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
+                const res = await resp.json();
+                if (res.status === "success") {
+                    const d = res.data;
+                    return {
+                        direction: d.direction,
+                        formatted: `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
+                    };
+                }
+            }
+        } catch (e) { return null; }
+    }
+
+    // --- SHARE INITIALIZATION ---
     window.addEventListener('load', async () => {
-        await performHousekeeping();
+        updateModeUI();
         const urlParams = new URLSearchParams(window.location.search);
-        
         if (urlParams.has('shared')) {
             const cache = await caches.open('shared-data');
             const keys = await cache.keys();
-            
-            if (keys.length > 0) {
-                const blobs = [];
-                for (let key of keys) {
-                    const response = await cache.match(key);
-                    blobs.push(await response.blob());
-                    await cache.delete(key);
+            const mode = localStorage.getItem('txnVaultMode') || 'standard';
+
+            for (let key of keys) {
+                const resp = await cache.match(key);
+                const blob = await resp.blob();
+                await cache.delete(key);
+
+                if(mode === 'batch') {
+                    await saveTxn(blob, "", "", 'pending');
+                } else {
+                    document.getElementById('p-cont').style.display = 'block';
+                    document.getElementById('preview').src = URL.createObjectURL(blob);
+                    const res = await runExtraction(blob);
+                    if(res) await saveTxn(blob, res.formatted, res.direction);
+                    document.getElementById('p-cont').style.display = 'none';
                 }
-                processQueue(blobs);
             }
         }
+        renderHistory();
     });
 
-    async function deleteTxn(id, e) {
-        e.stopPropagation();
-        if(!confirm("Purge this log?")) return;
-        const db = await initDB();
-        db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
-        renderHistory();
+    function openModal(img, text) {
+        document.getElementById('modal-img').src = img;
+        document.getElementById('modal-data').innerText = text;
+        document.getElementById('modal').style.display = "flex";
+        navigator.clipboard.writeText(text);
     }
-
-    async function clearHistory() {
-        if(!confirm("Purge all logs?")) return;
-        const db = await initDB();
-        db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
-        renderHistory();
-    }
+    function closeModal() { document.getElementById('modal').style.display = "none"; }
+    function clearHistory() { if(confirm("Purge All?")) { initDB().then(db => db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear().then(renderHistory)); } }
 </script>
 </body>
 </html>
