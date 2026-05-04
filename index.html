@@ -172,21 +172,35 @@
     }
 
     async function renderHistory() {
-        const db = await initDB();
-        const list = document.getElementById('history-list');
-        list.innerHTML = "";
-        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
-        req.onsuccess = () => {
-            req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
-                const div = document.createElement('div');
-                div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
-                const url = URL.createObjectURL(item.blob);
-                div.onclick = () => { if(item.status !== 'pending') openModal(url, item.text); };
-                div.innerHTML = `<img src="${url}" class="txn-thumb"><div class="txn-brief">${item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0]}</div>`;
-                list.appendChild(div);
-            });
-        };
-    }
+    const db = await initDB();
+    const list = document.getElementById('history-list');
+    list.innerHTML = "";
+    const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+    
+    req.onsuccess = () => {
+        req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
+            const div = document.createElement('div');
+            div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
+            
+            const url = URL.createObjectURL(item.blob);
+            
+            // Now allows clicking even if status is 'pending'
+            div.onclick = () => { 
+                const displayData = item.status === 'pending' ? "--- PENDING EXTRACTION ---" : item.text;
+                openModal(url, displayData); 
+            };
+
+            const displayBrief = item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0];
+            
+            div.innerHTML = `
+                <img src="${url}" class="txn-thumb">
+                <div class="txn-brief">${displayBrief}</div>
+            `;
+            list.appendChild(div);
+        });
+    };
+}
+
 
     async function runExtraction(blob) {
         try {
