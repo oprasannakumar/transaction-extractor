@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Txn Vault | Neon Pro</title>
     <link rel="manifest" href="manifest.json">
     <style>
@@ -22,7 +22,7 @@
             font-family: 'Segoe UI', Roboto, sans-serif; 
             display: flex; flex-direction: column; align-items: center; 
             padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
-            margin: 0; min-height: 100vh;
+            margin: 0; min-height: 100vh; overflow-x: hidden;
         }
 
         .card { 
@@ -70,18 +70,23 @@
         #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; }
 
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 100%; max-width: 450px; }
-        #history-list { width: 100%; max-width: 450px; margin-top: 15px; }
+        #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
+        
         .txn-item { 
             background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); 
             border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
-            padding: 12px; cursor: pointer; transition: 0.2s;
+            padding: 12px; cursor: pointer; transition: transform 0.3s ease, opacity 0.3s ease;
+            user-select: none; touch-action: pan-y;
         }
         .txn-item.pending { border-left: 4px solid var(--neon-purple); opacity: 0.7; }
         .txn-item.in { border-left: 4px solid var(--neon-green); }
         .txn-item.out { border-left: 4px solid var(--neon-red); }
-        .txn-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; margin-right: 15px; }
-        .txn-brief { flex: 1; text-align: left; font-size: 0.8rem; color: #cbd5e1; font-family: monospace; }
         
+        .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; }
+        .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; }
+        .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+
         #modal { 
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding-top: 60px;
@@ -89,26 +94,6 @@
         #modal-img { max-width: 90%; border-radius: 16px; border: 2px solid var(--neon-blue); }
         #modal-data { padding: 30px; color: var(--neon-blue); font-family: monospace; width: 85%; line-height: 1.6; white-space: pre-wrap; }
         .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; }
-.txn-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-#history-list {
-    overflow-x: hidden; /* Prevents horizontal scroll during swipe */
-    width: 100%;
-    max-width: 450px;
-    margin-top: 15px;
-}
-
-.txn-item {
-    user-select: none; /* Prevents text selection while swiping */
-    touch-action: pan-y; /* Allows vertical scrolling but intercepts horizontal */
-}
-.txn-brief {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
     </style>
 </head>
 <body>
@@ -151,9 +136,8 @@
         groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
-    // --- SERVICE WORKER REGISTRATION ---
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Error', err));
+        navigator.serviceWorker.register('sw.js').catch(console.error);
     }
 
     const initDB = () => new Promise(res => {
@@ -162,7 +146,6 @@
         req.onsuccess = e => res(e.target.result);
     });
 
-    // --- MODE MANAGEMENT ---
     function setMode(mode) {
         localStorage.setItem('txnVaultMode', mode);
         updateModeUI();
@@ -184,106 +167,109 @@
         };
     }
 
-    async function saveTxn(blob, text, direction, status = 'success', shouldRender = true) {
+    async function runExtraction(blob) {
+        const start = Date.now();
+        try {
+            const base64 = await new Promise(res => {
+                const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
+            });
+            for (let model of ['gemini', 'groq']) {
+                document.getElementById('status').innerText = `SYNCING VIA ${model.toUpperCase()}...`;
+                const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
+                const res = await resp.json();
+                if (res.status === "success") {
+                    const duration = ((Date.now() - start) / 1000).toFixed(2);
+                    const d = res.data;
+                    return {
+                        duration,
+                        direction: d.direction,
+                        formatted: `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
+                    };
+                }
+            }
+        } catch (e) { return null; }
+    }
+
+    async function saveTxn(blob, text, direction, status = 'success', duration = null, shouldRender = true) {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
-        await tx.objectStore(STORE_NAME).add({ blob, text, direction, status, timestamp: Date.now() });
+        await tx.objectStore(STORE_NAME).add({ blob, text, direction, status, duration, timestamp: Date.now() });
         if (shouldRender) { renderHistory(); checkPending(); }
     }
 
     async function renderHistory() {
-    const db = await initDB();
-    const list = document.getElementById('history-list');
-    list.innerHTML = "";
-    const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
-    
-    req.onsuccess = () => {
-        req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
-            const div = document.createElement('div');
-            div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
-            div.style.position = "relative";
-            
-            const url = URL.createObjectURL(item.blob);
-            div.onclick = () => { 
-                const displayData = item.status === 'pending' ? "--- PENDING ---" : item.text;
-                openModal(url, displayData); 
-            };
-
-            // Swipe logic remains here...
-
-            const displayBrief = item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0];
-            const timeInfo = item.duration ? `<span style="opacity:0.5; font-size:0.65rem; margin-top:4px; display:block;">⏱️ Processed in ${item.duration}s</span>` : "";
-            
-            div.innerHTML = `
-                <img src="${url}" class="txn-thumb">
-                <div class="txn-brief">
-                    <div style="font-weight:bold;">${displayBrief}</div>
-                    ${timeInfo}
-                </div>
-            `;
-            list.appendChild(div);
-        });
-    };
-}
-
-
-
-async function handleSwipeDelete(element, id) {
-    // Visual feedback: Slide out to the left
-    element.style.transform = "translateX(-120%)";
-    element.style.opacity = "0";
-
-    // Wait for animation to finish before actual deletion
-    setTimeout(async () => {
         const db = await initDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
+        const list = document.getElementById('history-list');
+        list.innerHTML = "";
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         
-        const req = store.delete(id);
         req.onsuccess = () => {
+            req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
+                const div = document.createElement('div');
+                div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
+                const url = URL.createObjectURL(item.blob);
+                
+                div.onclick = () => openModal(url, item.status === 'pending' ? "--- PENDING ---" : item.text);
+
+                // --- IMPROVED SWIPE LOGIC ---
+                let startX = 0;
+                let startY = 0;
+                let isSwipe = false;
+
+                div.addEventListener('touchstart', e => {
+                    startX = e.touches[0].clientX;
+                    startY = e.touches[0].clientY;
+                    isSwipe = false;
+                }, {passive: true});
+
+                div.addEventListener('touchmove', e => {
+                    const moveX = startX - e.touches[0].clientX;
+                    const moveY = startY - e.touches[0].clientY;
+                    // If moving horizontally more than vertically, prevent scroll
+                    if (Math.abs(moveX) > Math.abs(moveY) && moveX > 30) {
+                        isSwipe = true;
+                        if (e.cancelable) e.preventDefault();
+                    }
+                }, {passive: false});
+
+                div.addEventListener('touchend', e => {
+                    const diffX = startX - e.changedTouches[0].clientX;
+                    if (diffX > 100) handleSwipeDelete(div, item.id);
+                }, {passive: true});
+
+                const brief = item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0];
+                const timeTag = item.duration ? `<span class="txn-time">⏱️ ${item.duration}s</span>` : "";
+
+                div.innerHTML = `
+                    <img src="${url}" class="txn-thumb">
+                    <div class="txn-brief">
+                        <span class="txn-title">${brief}</span>
+                        ${timeTag}
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        };
+    }
+
+    async function handleSwipeDelete(el, id) {
+        el.style.transform = "translateX(-120%)";
+        el.style.opacity = "0";
+        setTimeout(async () => {
+            const db = await initDB();
+            await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
             renderHistory();
             checkPending();
-            document.getElementById('status').innerText = "Swiped to Delete";
-        };
-    }, 300);
-}
-
-
-    async function runExtraction(blob) {
-    const startTime = Date.now(); // Record start time
-    try {
-        const base64 = await new Promise(res => {
-            const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
-        });
-        for (let model of ['gemini', 'groq']) {
-            document.getElementById('status').innerText = `SYNCING VIA ${model.toUpperCase()}...`;
-            const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
-            const res = await resp.json();
-            
-            if (res.status === "success") {
-                const endTime = Date.now();
-                const duration = ((endTime - startTime) / 1000).toFixed(2); // Calculate seconds
-                
-                const d = res.data;
-                return {
-                    direction: d.direction,
-                    duration: duration,
-                    formatted: `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
-                };
-            }
-        }
-    } catch (e) { return null; }
-}
-
+            document.getElementById('status').innerText = "Record Deleted";
+        }, 300);
+    }
 
     async function processBatchQueue() {
         const db = await initDB();
-        const req = db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).getAll();
-
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         req.onsuccess = async () => {
             const pending = req.result.filter(i => i.status === 'pending');
             if(!pending.length) return;
-
             document.getElementById('extract-all-btn').disabled = true;
             document.getElementById('p-cont').style.display = 'block';
 
@@ -291,14 +277,18 @@ async function handleSwipeDelete(element, id) {
                 document.getElementById('preview').src = URL.createObjectURL(item.blob);
                 const res = await runExtraction(item.blob);
                 if(res) {
-                    const updateTx = db.transaction(STORE_NAME, "readwrite");
-                    updateTx.objectStore(STORE_NAME).put({ ...item, text: res.formatted, direction: res.direction,
-                      duration: res.duration,
-                      status: 'success' });
-                    await new Promise(r => setTimeout(r, 400));
+                    const tx = db.transaction(STORE_NAME, "readwrite");
+                    tx.objectStore(STORE_NAME).put({ 
+                        ...item, 
+                        text: res.formatted, 
+                        direction: res.direction, 
+                        duration: res.duration, 
+                        status: 'success' 
+                    });
+                    // Refresh UI slightly after each success in batch
+                    renderHistory();
                 }
             }
-            
             document.getElementById('p-cont').style.display = 'none';
             document.getElementById('extract-all-btn').disabled = false;
             renderHistory();
@@ -306,39 +296,34 @@ async function handleSwipeDelete(element, id) {
         };
     }
 
-    // --- THE CRITICAL INTERFACE LOGIC ---
     window.addEventListener('load', async () => {
         updateModeUI();
-        
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
             const cache = await caches.open('shared-data');
             const keys = await cache.keys();
             const mode = localStorage.getItem('txnVaultMode') || 'standard';
-
-            if (keys.length > 0) {
-                document.getElementById('status').innerText = `SYNCING ${keys.length} ITEM(S)...`;
-
-                for (let key of keys) {
-                    const resp = await cache.match(key);
-                    const blob = await resp.blob();
-                    await cache.delete(key); // Clean up cache immediately
-
-                    if (mode === 'batch') {
-                        await saveTxn(blob, "", "", 'pending', false);
-                    } else {
-                        document.getElementById('p-cont').style.display = 'block';
-                        document.getElementById('preview').src = URL.createObjectURL(blob);
-                        const res = await runExtraction(blob);
-                        if (res) await saveTxn(blob, res.formatted, res.direction, 'success', false);
-                        document.getElementById('p-cont').style.display = 'none';
+            
+            for (let key of keys) {
+                const resp = await cache.match(key);
+                const blob = await resp.blob();
+                await cache.delete(key);
+                
+                if (mode === 'batch') {
+                    await saveTxn(blob, "", "", 'pending', null, false);
+                } else {
+                    document.getElementById('p-cont').style.display = 'block';
+                    document.getElementById('preview').src = URL.createObjectURL(blob);
+                    const res = await runExtraction(blob);
+                    if (res) {
+                        await saveTxn(blob, res.formatted, res.direction, 'success', res.duration, false);
                     }
+                    document.getElementById('p-cont').style.display = 'none';
                 }
-                // Clear URL and refresh history
-                window.history.replaceState({}, '', window.location.pathname);
-                renderHistory();
-                checkPending();
             }
+            window.history.replaceState({}, '', window.location.pathname);
+            renderHistory();
+            checkPending();
         } else {
             renderHistory();
         }
@@ -350,27 +335,18 @@ async function handleSwipeDelete(element, id) {
         document.getElementById('modal').style.display = "flex";
         navigator.clipboard.writeText(text);
     }
+    
     function closeModal() { document.getElementById('modal').style.display = "none"; }
+    
     async function clearHistory() { 
-    if(confirm("Purge All?")) { 
-        const db = await initDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        
-        // Clear the store
-        const request = store.clear();
-        
-        request.onsuccess = () => {
-            // 1. Clear the visual list
-            document.getElementById('history-list').innerHTML = "";
-            // 2. Hide the 'Extract All' button if it was showing
-            checkPending(); 
-            // 3. Reset status
-            document.getElementById('status').innerText = "System Purged";
-        };
-    } 
-}
-
+        if(confirm("Purge All?")) { 
+            const db = await initDB();
+            await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
+            renderHistory();
+            checkPending();
+            document.getElementById('status').innerText = "Database Purged";
+        } 
+    }
 </script>
 </body>
 </html>
