@@ -181,10 +181,11 @@
         req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
             const div = document.createElement('div');
             div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
+            div.style.position = "relative"; // For delete button positioning
             
             const url = URL.createObjectURL(item.blob);
             
-            // Now allows clicking even if status is 'pending'
+            // Open Modal on click
             div.onclick = () => { 
                 const displayData = item.status === 'pending' ? "--- PENDING EXTRACTION ---" : item.text;
                 openModal(url, displayData); 
@@ -195,6 +196,7 @@
             div.innerHTML = `
                 <img src="${url}" class="txn-thumb">
                 <div class="txn-brief">${displayBrief}</div>
+                <button onclick="deleteItem(event, ${item.id})" style="background: rgba(248,113,113,0.2); color: #f87171; border: none; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-weight: bold; margin-left: 10px;">&times;</button>
             `;
             list.appendChild(div);
         });
