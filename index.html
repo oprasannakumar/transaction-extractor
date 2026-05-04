@@ -92,9 +92,16 @@
 .txn-item:hover {
     background: rgba(255, 255, 255, 0.08);
 }
+#history-list {
+    overflow-x: hidden; /* Prevents horizontal scroll during swipe */
+    width: 100%;
+    max-width: 450px;
+    margin-top: 15px;
+}
 
-.txn-item button:hover {
-    background: rgba(248, 113, 113, 0.4) !important;
+.txn-item {
+    user-select: none; /* Prevents text selection while swiping */
+    touch-action: pan-y; /* Allows vertical scrolling but intercepts horizontal */
 }
 
     </style>
@@ -189,45 +196,62 @@
         req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
             const div = document.createElement('div');
             div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
-            div.style.position = "relative"; // For delete button positioning
+            div.style.transition = "transform 0.3s ease, opacity 0.3s ease";
             
             const url = URL.createObjectURL(item.blob);
             
-            // Open Modal on click
+            // Standard click to open modal
             div.onclick = () => { 
                 const displayData = item.status === 'pending' ? "--- PENDING EXTRACTION ---" : item.text;
                 openModal(url, displayData); 
             };
+
+            // --- SWIPE LOGIC ---
+            let touchStartX = 0;
+            div.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+            }, {passive: true});
+
+            div.addEventListener('touchend', (e) => {
+                let touchEndX = e.changedTouches[0].screenX;
+                // If swiped left by more than 100 pixels
+                if (touchStartX - touchEndX > 100) {
+                    handleSwipeDelete(div, item.id);
+                }
+            }, {passive: true});
 
             const displayBrief = item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0];
             
             div.innerHTML = `
                 <img src="${url}" class="txn-thumb">
                 <div class="txn-brief">${displayBrief}</div>
-                <button onclick="deleteItem(event, ${item.id})" style="background: rgba(248,113,113,0.2); color: #f87171; border: none; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-weight: bold; margin-left: 10px;">&times;</button>
             `;
             list.appendChild(div);
         });
     };
 }
 
-async function deleteItem(event, id) {
-    event.stopPropagation(); // Prevents the modal from opening
-    
-    if(confirm("Delete this record?")) {
+
+async function handleSwipeDelete(element, id) {
+    // Visual feedback: Slide out to the left
+    element.style.transform = "translateX(-120%)";
+    element.style.opacity = "0";
+
+    // Wait for animation to finish before actual deletion
+    setTimeout(async () => {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
         const store = tx.objectStore(STORE_NAME);
         
         const req = store.delete(id);
-        
         req.onsuccess = () => {
             renderHistory();
             checkPending();
-            document.getElementById('status').innerText = "Item Removed";
+            document.getElementById('status').innerText = "Swiped to Delete";
         };
-    }
+    }, 300);
 }
+
 
     async function runExtraction(blob) {
         try {
