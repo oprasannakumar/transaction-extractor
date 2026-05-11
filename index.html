@@ -72,10 +72,9 @@
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 100%; max-width: 450px; }
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
         
-        /* TRANSACTION ITEMS WITH 4-SIDE BORDERS */
         .txn-item { 
             background: rgba(255, 255, 255, 0.03); 
-            border: 2px solid transparent; /* Base state */
+            border: 2px solid transparent;
             border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
             padding: 12px; cursor: pointer; transition: transform 0.1s linear, opacity 0.3s ease;
             user-select: none; touch-action: pan-y; position: relative; will-change: transform;
@@ -87,7 +86,8 @@
         .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; }
         .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
         .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+        .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+        .engine-tag { color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; }
 
         #modal { 
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
@@ -184,6 +184,7 @@
                     const d = res.data;
                     return {
                         duration,
+                        engine: model.toUpperCase(),
                         direction: d.direction,
                         formatted: `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
                     };
@@ -192,20 +193,21 @@
         } catch (e) { return null; }
     }
 
-    async function saveTxn(blob, text, direction, status = 'success', duration = null, shouldRender = true) {
+    async function saveTxn(blob, text, direction, status = 'success', duration = null, engine = null, shouldRender = true) {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
-        await tx.objectStore(STORE_NAME).add({ blob, text, direction, status, duration, timestamp: Date.now() });
+        const store = tx.objectStore(STORE_NAME);
+        await store.add({ blob, text, direction, status, duration, engine, timestamp: Date.now() });
         if (shouldRender) { renderHistory(); checkPending(); }
     }
 
     async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
-        list.innerHTML = "";
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         
         req.onsuccess = () => {
+            list.innerHTML = ""; // Clear existing UI
             req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
                 div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
@@ -215,10 +217,7 @@
                     if (!div.dataset.swiped) openModal(url, item.status === 'pending' ? "--- PENDING ---" : item.text);
                 };
 
-                // --- REAL-TIME SWIPE-TO-MOVE LOGIC ---
                 let startX = 0;
-                let currentX = 0;
-
                 div.addEventListener('touchstart', e => {
                     startX = e.touches[0].clientX;
                     div.style.transition = "none"; 
@@ -226,8 +225,7 @@
                 }, {passive: true});
 
                 div.addEventListener('touchmove', e => {
-                    currentX = e.touches[0].clientX;
-                    const diffX = currentX - startX;
+                    const diffX = e.touches[0].clientX - startX;
                     if (diffX < 0) { 
                         const move = Math.max(diffX, -200); 
                         div.style.transform = `translateX(${move}px)`;
@@ -238,22 +236,19 @@
                 div.addEventListener('touchend', e => {
                     const diffX = e.changedTouches[0].clientX - startX;
                     div.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-                    if (diffX < -120) { 
-                        handleSwipeDelete(div, item.id);
-                    } else {
-                        div.style.transform = "translateX(0)";
-                        setTimeout(() => div.dataset.swiped = "", 300);
-                    }
+                    if (diffX < -120) { handleSwipeDelete(div, item.id); } 
+                    else { div.style.transform = "translateX(0)"; setTimeout(() => div.dataset.swiped = "", 300); }
                 }, {passive: true});
 
                 const brief = item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0];
-                const timeTag = item.duration ? `<span class="txn-time">⏱️ ${item.duration}s</span>` : "";
+                const timeTag = item.duration ? `<span>⏱️ ${item.duration}s</span>` : "";
+                const engineTag = item.engine ? `<span class="engine-tag">${item.engine}</span>` : "";
 
                 div.innerHTML = `
                     <img src="${url}" class="txn-thumb">
                     <div class="txn-brief">
                         <span class="txn-title">${brief}</span>
-                        ${timeTag}
+                        <div class="txn-time">${timeTag} ${engineTag}</div>
                     </div>
                 `;
                 list.appendChild(div);
@@ -269,7 +264,6 @@
             await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
             renderHistory();
             checkPending();
-            document.getElementById('status').innerText = "Record Removed";
         }, 300);
     }
 
@@ -288,27 +282,20 @@
                 if(res) {
                     const tx = db.transaction(STORE_NAME, "readwrite");
                     tx.objectStore(STORE_NAME).put({ 
-                        ...item, 
-                        text: res.formatted, 
-                        direction: res.direction, 
-                        duration: res.duration, 
-                        status: 'success' 
+                        ...item, text: res.formatted, direction: res.direction, 
+                        duration: res.duration, engine: res.engine, status: 'success' 
                     });
-                    renderHistory();
                 }
             }
             document.getElementById('p-cont').style.display = 'none';
             document.getElementById('extract-all-btn').disabled = false;
-            renderHistory();
+            renderHistory(); // Single UI refresh after batch
             checkPending();
         };
     }
 
     window.addEventListener('load', async () => {
         updateModeUI();
-
-        // --- INTERNAL AUTO-CLEANUP LOGIC ---
-        // Purge records older than 24 hours on app load
         const db = await initDB();
         const cleanTx = db.transaction(STORE_NAME, "readwrite");
         const cleanStore = cleanTx.objectStore(STORE_NAME);
@@ -316,9 +303,7 @@
         cleanReq.onsuccess = () => {
             const now = Date.now();
             const oneDay = 24 * 60 * 60 * 1000;
-            cleanReq.result.forEach(item => {
-                if (now - item.timestamp > oneDay) cleanStore.delete(item.id);
-            });
+            cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
         };
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -333,14 +318,12 @@
                 await cache.delete(key);
                 
                 if (mode === 'batch') {
-                    await saveTxn(blob, "", "", 'pending', null, false);
+                    await saveTxn(blob, "", "", 'pending', null, null, false);
                 } else {
                     document.getElementById('p-cont').style.display = 'block';
                     document.getElementById('preview').src = URL.createObjectURL(blob);
                     const res = await runExtraction(blob);
-                    if (res) {
-                        await saveTxn(blob, res.formatted, res.direction, 'success', res.duration, false);
-                    }
+                    if (res) await saveTxn(blob, res.formatted, res.direction, 'success', res.duration, res.engine, false);
                     document.getElementById('p-cont').style.display = 'none';
                 }
             }
@@ -367,7 +350,6 @@
             await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
             renderHistory();
             checkPending();
-            document.getElementById('status').innerText = "Data Core Purged";
         } 
     }
 </script>
