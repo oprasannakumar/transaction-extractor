@@ -72,15 +72,17 @@
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 100%; max-width: 450px; }
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
         
+        /* TRANSACTION ITEMS WITH 4-SIDE BORDERS */
         .txn-item { 
-            background: rgba(255, 255, 255, 0.03); border-radius: 16px;border: 1px solid transparent;
-            margin-bottom: 12px; display: flex; align-items: center; 
+            background: rgba(255, 255, 255, 0.03); 
+            border: 2px solid transparent; /* Base state */
+            border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center; 
             padding: 12px; cursor: pointer; transition: transform 0.1s linear, opacity 0.3s ease;
             user-select: none; touch-action: pan-y; position: relative; will-change: transform;
         }
-        .txn-item.pending { border: 4px solid var(--neon-purple); opacity: 0.7; }
-        .txn-item.in { border: 4px solid var(--neon-green); }
-        .txn-item.out { border: 4px solid var(--neon-red); }
+        .txn-item.pending { border-color: var(--neon-purple); opacity: 0.7; }
+        .txn-item.in { border-color: var(--neon-green); }
+        .txn-item.out { border-color: var(--neon-red); }
         
         .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; }
         .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
@@ -183,7 +185,7 @@
                     return {
                         duration,
                         direction: d.direction,
-                        formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
+                        formatted: `📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
                     };
                 }
             }
@@ -210,39 +212,35 @@
                 const url = URL.createObjectURL(item.blob);
                 
                 div.onclick = (e) => {
-                    // Only open modal if we didn't just perform a swipe
                     if (!div.dataset.swiped) openModal(url, item.status === 'pending' ? "--- PENDING ---" : item.text);
                 };
 
-                // --- SMOOTH SWIPE-TO-MOVE LOGIC ---
+                // --- REAL-TIME SWIPE-TO-MOVE LOGIC ---
                 let startX = 0;
                 let currentX = 0;
 
                 div.addEventListener('touchstart', e => {
                     startX = e.touches[0].clientX;
-                    div.style.transition = "none"; // Remove transitions while tracking finger
+                    div.style.transition = "none"; 
                     div.dataset.swiped = ""; 
                 }, {passive: true});
 
                 div.addEventListener('touchmove', e => {
                     currentX = e.touches[0].clientX;
                     const diffX = currentX - startX;
-                    
-                    if (diffX < 0) { // Only track left swipes
-                        const move = Math.max(diffX, -200); // Cap the visual movement
+                    if (diffX < 0) { 
+                        const move = Math.max(diffX, -200); 
                         div.style.transform = `translateX(${move}px)`;
-                        if (Math.abs(diffX) > 10) div.dataset.swiped = "true"; // Flag to prevent accidental click
+                        if (Math.abs(diffX) > 10) div.dataset.swiped = "true";
                     }
                 }, {passive: true});
 
                 div.addEventListener('touchend', e => {
                     const diffX = e.changedTouches[0].clientX - startX;
                     div.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-                    
-                    if (diffX < -120) { // Threshold reached
+                    if (diffX < -120) { 
                         handleSwipeDelete(div, item.id);
                     } else {
-                        // Snap back
                         div.style.transform = "translateX(0)";
                         setTimeout(() => div.dataset.swiped = "", 300);
                     }
@@ -271,7 +269,7 @@
             await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(id);
             renderHistory();
             checkPending();
-            document.getElementById('status').innerText = "Record Deleted";
+            document.getElementById('status').innerText = "Record Removed";
         }, 300);
     }
 
@@ -308,6 +306,21 @@
 
     window.addEventListener('load', async () => {
         updateModeUI();
+
+        // --- INTERNAL AUTO-CLEANUP LOGIC ---
+        // Purge records older than 24 hours on app load
+        const db = await initDB();
+        const cleanTx = db.transaction(STORE_NAME, "readwrite");
+        const cleanStore = cleanTx.objectStore(STORE_NAME);
+        const cleanReq = cleanStore.getAll();
+        cleanReq.onsuccess = () => {
+            const now = Date.now();
+            const oneDay = 24 * 60 * 60 * 1000;
+            cleanReq.result.forEach(item => {
+                if (now - item.timestamp > oneDay) cleanStore.delete(item.id);
+            });
+        };
+
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('shared')) {
             const cache = await caches.open('shared-data');
@@ -354,7 +367,7 @@
             await db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear();
             renderHistory();
             checkPending();
-            document.getElementById('status').innerText = "Database Purged";
+            document.getElementById('status').innerText = "Data Core Purged";
         } 
     }
 </script>
