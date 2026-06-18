@@ -119,7 +119,10 @@
 
     <div class="history-header">
         <h4 style="margin:0; font-size: 0.8rem; color: #64748b; letter-spacing: 1px;">CACHE</h4>
-        <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
+        <div style="display: flex; gap: 8px;">
+            <button id="copy-all-btn" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="copyAllData()">COPY ALL</button>
+            <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
+        </div>
     </div>
     <div id="history-list"></div>
 </div>
@@ -351,6 +354,49 @@
             renderHistory();
             checkPending();
         } 
+    }
+
+    async function copyAllData() {
+        const db = await initDB();
+        const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+        
+        req.onsuccess = async () => {
+            // Sort by newest first and filter out pending items
+            const items = req.result
+                .sort((a,b) => b.timestamp - a.timestamp)
+                .filter(i => i.status !== 'pending' && i.text);
+            
+            if (items.length === 0) {
+                alert("No extracted data available to copy.");
+                return;
+            }
+
+            // Map and format all text blocks with a clean separator
+            const allText = items.map((item, index) => 
+                `--- Transaction ${index + 1} ---\n${item.text}`
+            ).join('\n\n');
+            
+            try {
+                // Write the massive string to the clipboard
+                await navigator.clipboard.writeText(allText);
+                
+                // Provide quick visual feedback on the button
+                const btn = document.getElementById('copy-all-btn');
+                btn.innerText = "COPIED!";
+                btn.style.color = "var(--neon-green)";
+                btn.style.borderColor = "var(--neon-green)";
+                
+                // Reset button after 2 seconds
+                setTimeout(() => {
+                    btn.innerText = "COPY ALL";
+                    btn.style.color = "var(--neon-blue)";
+                    btn.style.borderColor = "var(--neon-blue)";
+                }, 2000);
+            } catch (err) {
+                console.error("Clipboard write failed: ", err);
+                alert("Failed to copy. Please check your browser's clipboard permissions.");
+            }
+        };
     }
 </script>
 </body>
