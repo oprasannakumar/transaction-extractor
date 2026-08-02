@@ -55,6 +55,23 @@
             cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
         }
 
+        .cloud-fetch {
+            display: flex; gap: 10px; margin-bottom: 20px;
+        }
+        
+        .cloud-fetch input[type="date"] {
+            flex: 1; background: rgba(0,0,0,0.2); color: #e2e8f0; 
+            border: 1px solid var(--glass-border); padding: 10px; 
+            border-radius: 10px; color-scheme: dark; font-family: monospace;
+        }
+        
+        .cloud-fetch button {
+            background: transparent; border: 1px solid var(--neon-purple); 
+            color: var(--neon-purple); padding: 0 15px; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; font-size: 0.75rem;
+        }
+        .cloud-fetch button:active { background: var(--neon-purple); color: white; }
+
         .preview-container { 
             position: relative; margin-top: 10px; display: none; overflow: hidden; 
             border-radius: 16px; border: 2px solid var(--neon-blue);
@@ -69,7 +86,7 @@
 
         #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; }
 
-        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; width: 100%; max-width: 450px; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; width: 100%; max-width: 450px; }
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
         
         .txn-item { 
@@ -83,7 +100,7 @@
         .txn-item.in { border-color: var(--neon-green); }
         .txn-item.out { border-color: var(--neon-red); }
         
-        .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; }
+        .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;}
         .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
         .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; }
@@ -93,7 +110,7 @@
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding-top: 60px;
         }
-        #modal-img { max-width: 90%; border-radius: 16px; border: 2px solid var(--neon-blue); }
+        #modal-img { max-width: 90%; border-radius: 16px; border: 2px solid var(--neon-blue); display: none; }
         #modal-data { padding: 30px; color: var(--neon-blue); font-family: monospace; width: 85%; line-height: 1.6; white-space: pre-wrap; }
         .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; }
     </style>
@@ -106,6 +123,11 @@
     <div class="mode-selector">
         <button class="mode-btn" id="btn-standard" onclick="setMode('standard')">Standard</button>
         <button class="mode-btn" id="btn-batch" onclick="setMode('batch')">Batch</button>
+    </div>
+
+    <div class="cloud-fetch">
+        <input type="date" id="fetch-date">
+        <button onclick="fetchFromCloud()">Cloud Sync</button>
     </div>
 
     <button id="extract-all-btn" onclick="processBatchQueue()">Extract All Pending</button>
@@ -172,6 +194,53 @@
         };
     }
 
+    async function fetchFromCloud() {
+        const dateVal = document.getElementById('fetch-date').value;
+        if(!dateVal) return;
+        
+        const statusEl = document.getElementById('status');
+        statusEl.innerText = `SYNCING DATA FOR ${dateVal}...`;
+        
+        try {
+            // Send request to Gemini endpoint with 'fetch' action
+            const resp = await fetch(endpoints.gemini, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: "fetch", date: dateVal })
+            });
+            const res = await resp.json();
+            
+            if (res.status === "success" && res.data && res.data.length > 0) {
+                const db = await initDB();
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                const store = tx.objectStore(STORE_NAME);
+                
+                // Clear existing db elements from this specific date to avoid duplicates (optional, disabled for safety)
+                
+                res.data.forEach(item => {
+                    store.add({ 
+                        blob: null, // No image associated with cloud fetch
+                        text: item.formatted, 
+                        direction: item.direction, 
+                        status: 'success', 
+                        duration: null, 
+                        engine: 'CLOUD', 
+                        timestamp: Date.now() 
+                    });
+                });
+                
+                statusEl.innerText = `FETCHED ${res.data.length} RECORDS FROM CLOUD`;
+                renderHistory();
+            } else {
+                statusEl.innerText = "NO DATA FOUND FOR THIS DATE";
+            }
+        } catch (e) {
+            statusEl.innerText = "CLOUD SYNC FAILED";
+            console.error(e);
+        }
+        
+        setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
+    }
+
     async function runExtraction(blob) {
         const start = Date.now();
         try {
@@ -204,20 +273,25 @@
         if (shouldRender) { renderHistory(); checkPending(); }
     }
 
-    async function renderHistory() {
+        async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         
+        // FIX 1: Properly URL-encoded SVG to prevent HTML attribute breaking
+        const cloudSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z'%3E%3C/path%3E%3C/svg%3E";
+
         req.onsuccess = () => {
-            list.innerHTML = ""; // Clear existing UI
+            list.innerHTML = ""; 
             req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
                 div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
-                const url = URL.createObjectURL(item.blob);
+                
+                const url = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
+                const isCloudItem = !item.blob;
                 
                 div.onclick = (e) => {
-                    if (!div.dataset.swiped) openModal(url, item.status === 'pending' ? "--- PENDING ---" : item.text);
+                    if (!div.dataset.swiped) openModal(url, item.status === 'pending' ? "--- PENDING ---" : item.text, isCloudItem);
                 };
 
                 let startX = 0;
@@ -243,12 +317,16 @@
                     else { div.style.transform = "translateX(0)"; setTimeout(() => div.dataset.swiped = "", 300); }
                 }, {passive: true});
 
-                const brief = item.status === 'pending' ? '[PENDING EXTRACTION]' : item.text.split('\n')[0];
+                // FIX 2: Target the "📅 Date" line for the title to match the reference image
+                const brief = item.status === 'pending' 
+                    ? '[PENDING EXTRACTION]' 
+                    : (item.text.split('\n').find(l => l.includes('📅')) || item.text.split('\n')[0]);
+                
                 const timeTag = item.duration ? `<span>⏱️ ${item.duration}s</span>` : "";
                 const engineTag = item.engine ? `<span class="engine-tag">${item.engine}</span>` : "";
 
                 div.innerHTML = `
-                    <img src="${url}" class="txn-thumb">
+                    <img src="${url}" class="txn-thumb" style="${isCloudItem ? 'padding: 12px;' : ''}">
                     <div class="txn-brief">
                         <span class="txn-title">${brief}</span>
                         <div class="txn-time">${timeTag} ${engineTag}</div>
@@ -258,6 +336,7 @@
             });
         };
     }
+
 
     async function handleSwipeDelete(el, id) {
         el.style.transform = "translateX(-120%)";
@@ -292,12 +371,16 @@
             }
             document.getElementById('p-cont').style.display = 'none';
             document.getElementById('extract-all-btn').disabled = false;
-            renderHistory(); // Single UI refresh after batch
+            renderHistory(); 
             checkPending();
         };
     }
 
     window.addEventListener('load', async () => {
+        // Set date picker to today automatically
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('fetch-date').value = today;
+
         updateModeUI();
         const db = await initDB();
         const cleanTx = db.transaction(STORE_NAME, "readwrite");
@@ -338,8 +421,14 @@
         }
     });
 
-    function openModal(img, text) {
-        document.getElementById('modal-img').src = img;
+    function openModal(img, text, isCloudItem = false) {
+        const modalImg = document.getElementById('modal-img');
+        if (!isCloudItem) {
+            modalImg.src = img;
+            modalImg.style.display = "block";
+        } else {
+            modalImg.style.display = "none";
+        }
         document.getElementById('modal-data').innerText = text;
         document.getElementById('modal').style.display = "flex";
         navigator.clipboard.writeText(text);
@@ -361,7 +450,6 @@
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         
         req.onsuccess = async () => {
-            // Sort by newest first and filter out pending items
             const items = req.result
                 .sort((a,b) => b.timestamp - a.timestamp)
                 .filter(i => i.status !== 'pending' && i.text);
@@ -371,22 +459,16 @@
                 return;
             }
 
-            // Map and format all text blocks with a clean separator
             const allText = items.map((item, index) => 
                 `--- Transaction ${index + 1} ---\n${item.text}`
             ).join('\n\n');
             
             try {
-                // Write the massive string to the clipboard
                 await navigator.clipboard.writeText(allText);
-                
-                // Provide quick visual feedback on the button
                 const btn = document.getElementById('copy-all-btn');
                 btn.innerText = "COPIED!";
                 btn.style.color = "var(--neon-green)";
                 btn.style.borderColor = "var(--neon-green)";
-                
-                // Reset button after 2 seconds
                 setTimeout(() => {
                     btn.innerText = "COPY ALL";
                     btn.style.color = "var(--neon-blue)";
