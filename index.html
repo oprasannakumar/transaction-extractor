@@ -194,7 +194,7 @@
         };
     }
 
-    async function fetchFromCloud() {
+        async function fetchFromCloud() {
         const dateVal = document.getElementById('fetch-date').value;
         if(!dateVal) return;
         
@@ -202,7 +202,6 @@
         statusEl.innerText = `SYNCING DATA FOR ${dateVal}...`;
         
         try {
-            // Send request to Gemini endpoint with 'fetch' action
             const resp = await fetch(endpoints.gemini, { 
                 method: 'POST', 
                 body: JSON.stringify({ action: "fetch", date: dateVal })
@@ -211,25 +210,46 @@
             
             if (res.status === "success" && res.data && res.data.length > 0) {
                 const db = await initDB();
+                
+                // Get all existing local records to check for duplicates
+                const existingRecords = await new Promise(resolve => {
+                    const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+                    req.onsuccess = () => resolve(req.result);
+                });
+
                 const tx = db.transaction(STORE_NAME, "readwrite");
                 const store = tx.objectStore(STORE_NAME);
                 
-                // Clear existing db elements from this specific date to avoid duplicates (optional, disabled for safety)
-                
-                res.data.forEach(item => {
-                    store.add({ 
-                        blob: null, // No image associated with cloud fetch
-                        text: item.formatted, 
-                        direction: item.direction, 
-                        status: 'success', 
-                        duration: null, 
-                        engine: 'CLOUD', 
-                        timestamp: Date.now() 
+                let addedCount = 0;
+
+                res.data.forEach(cloudItem => {
+                    // Check if this transaction already exists locally (matching by refId or text content)
+                    const isDuplicate = existingRecords.some(localItem => {
+                        if (cloudItem.refId && localItem.text && localItem.text.includes(cloudItem.refId)) {
+                            return true;
+                        }
+                        // Fallback check against the formatted text block if refId is missing
+                        return localItem.text === cloudItem.formatted;
                     });
+
+                    // Only add if it doesn't already exist locally
+                    if (!isDuplicate) {
+                        store.add({ 
+                            blob: null, 
+                            text: cloudItem.formatted, 
+                            direction: cloudItem.direction, 
+                            status: 'success', 
+                            duration: null, 
+                            engine: 'CLOUD', 
+                            timestamp: Date.now() 
+                        });
+                        addedCount++;
+                    }
                 });
                 
-                statusEl.innerText = `FETCHED ${res.data.length} RECORDS FROM CLOUD`;
+                statusEl.innerText = addedCount > 0 ? `ADDED ${addedCount} NEW RECORDS` : "NO NEW RECORDS TO SYNC";
                 renderHistory();
+                checkPending();
             } else {
                 statusEl.innerText = "NO DATA FOUND FOR THIS DATE";
             }
@@ -240,6 +260,7 @@
         
         setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
     }
+
 
     async function runExtraction(blob) {
         const start = Date.now();
