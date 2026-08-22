@@ -264,7 +264,7 @@
 
     async function runExtraction(blob) {
         const start = Date.now();
-        const statusEl = document.getElementById('status'); // Helper for the status element
+        const statusEl = document.getElementById('status');
         
         // Wait for base64 conversion
         const base64 = await new Promise(res => {
@@ -275,13 +275,22 @@
 
         for (let model of ['groq', 'gemini']) {
             try {
-                statusEl.style.color = "#94a3b8"; // Normal color
+                statusEl.style.color = "#94a3b8"; 
                 statusEl.innerText = `SYNCING VIA ${model.toUpperCase()}...`;
                 
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
-                const res = await resp.json();
                 
-                if (res.status === "success") {
+                // Read the raw text first in case it's an HTML error page from Google instead of JSON
+                const rawText = await resp.text(); 
+                
+                let res;
+                try {
+                    res = JSON.parse(rawText);
+                } catch (parseError) {
+                    throw new Error("Invalid JSON: " + rawText.substring(0, 50));
+                }
+                
+                if (res.status === "success" && res.data) {
                     const duration = ((Date.now() - start) / 1000).toFixed(2);
                     const d = res.data;
                     return {
@@ -291,8 +300,14 @@
                         formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
                     };
                 } else {
-                    // If Apps Script connects but returns an error (e.g., { status: 'error', message: 'API key invalid' })
-                    throw new Error(res.message || res.error || "API returned an error");
+                    // Extract EVERY possible error field, or just dump the whole JSON object if none exist
+                    let errorDetails = res.message || res.error || res.details || res.error_message || res.status;
+                    
+                    if (!errorDetails) {
+                        // Stringify the object so you can see exactly what the script sent back
+                        errorDetails = JSON.stringify(res);
+                    }
+                    throw new Error(errorDetails);
                 }
             } catch (e) {
                 console.warn(`${model.toUpperCase()} API failed:`, e);
@@ -300,18 +315,18 @@
                 
                 // Show the error in the UI in red
                 statusEl.style.color = "var(--neon-red)"; 
-                statusEl.innerText = `${model.toUpperCase()} ERR: ${lastError.substring(0, 40).toUpperCase()}`;
+                statusEl.innerText = `${model.toUpperCase()} ERR: ${lastError.substring(0, 80)}`; // Increased length to see more of the JSON
                 
-                // Pause for 1.5 seconds so you can actually read the error before it falls back to Gemini
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                // Pause for 2.5 seconds so you have time to read the raw error
+                await new Promise(resolve => setTimeout(resolve, 2500));
             }
         }
         
-        // If it exits the loop, BOTH engines failed. Show the final error message.
+        // Final fallback failure message
         statusEl.style.color = "var(--neon-red)";
-        statusEl.innerText = `EXTRACTION FAILED: ${lastError.toUpperCase()}`;
+        statusEl.innerText = `EXTRACTION FAILED: ${lastError.substring(0, 50)}`;
         
-        // Reset the status back to normal after 5 seconds
+        // Reset after 5 seconds
         setTimeout(() => { 
             statusEl.innerText = "System Online"; 
             statusEl.style.color = "#94a3b8"; 
