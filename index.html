@@ -159,7 +159,7 @@
     const DB_NAME = "TxnVaultDB";
     const STORE_NAME = "transactions";
     const endpoints = {
-        gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exe",
+        gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
         groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
@@ -268,7 +268,7 @@
             const base64 = await new Promise(res => {
                 const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
             });
-            for (let model of ['gemini', 'groq']) {
+            for (let model of [ 'groq']) {
                 document.getElementById('status').innerText = `SYNCING VIA ${model.toUpperCase()}...`;
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
                 const res = await resp.json();
