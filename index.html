@@ -280,7 +280,7 @@
                 
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
                 
-                // Read the raw text first in case it's an HTML error page from Google instead of JSON
+                // Read the raw text first
                 const rawText = await resp.text(); 
                 
                 let res;
@@ -290,7 +290,8 @@
                     throw new Error("Invalid JSON: " + rawText.substring(0, 50));
                 }
                 
-                if (res.status === "success" && res.data) {
+                // Check if it's truly a success AND data is an object (not an error string)
+                if (res.status === "success" && typeof res.data === "object") {
                     const duration = ((Date.now() - start) / 1000).toFixed(2);
                     const d = res.data;
                     return {
@@ -300,24 +301,25 @@
                         formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
                     };
                 } else {
-                    // Extract EVERY possible error field, or just dump the whole JSON object if none exist
-                    let errorDetails = res.message || res.error || res.details || res.error_message || res.status;
+                    // FIX: Since your Apps Script sends the error message inside "data", we grab it here.
+                    let errorDetails = res.data || res.message || res.status;
                     
-                    if (!errorDetails) {
-                        // Stringify the object so you can see exactly what the script sent back
-                        errorDetails = JSON.stringify(res);
+                    // If the error detail is somehow still an object, turn it into a string
+                    if (typeof errorDetails === 'object') {
+                        errorDetails = JSON.stringify(errorDetails);
                     }
+                    
                     throw new Error(errorDetails);
                 }
             } catch (e) {
                 console.warn(`${model.toUpperCase()} API failed:`, e);
                 lastError = e.message || "Network Error";
                 
-                // Show the error in the UI in red
+                // Show the specific error string from res.data in the UI in red
                 statusEl.style.color = "var(--neon-red)"; 
-                statusEl.innerText = `${model.toUpperCase()} ERR: ${lastError.substring(0, 80)}`; // Increased length to see more of the JSON
+                statusEl.innerText = `${model.toUpperCase()} ERR: ${lastError.substring(0, 80)}`; 
                 
-                // Pause for 2.5 seconds so you have time to read the raw error
+                // Pause for 2.5 seconds to let you read it
                 await new Promise(resolve => setTimeout(resolve, 2500));
             }
         }
