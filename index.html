@@ -1,62 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Txn Vault | Neon Pro</title>
-    <link rel="manifest" href="manifest.json">
-    <style>
-        :root {
-            --neon-blue: #00d2ff;
-            --neon-purple: #9d50bb;
-            --neon-green: #39ff14;
-            --neon-red: #ff3131;
-            --bg-dark: #0f172a;
-            --glass-bg: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.1);
-        }
-
-        * { -webkit-tap-highlight-color: transparent; outline: none; box-sizing: border-box; }
-
-        body { 
-            font-family: 'Segoe UI', Roboto, sans-serif; 
-            display: flex; flex-direction: column; align-items: center; 
-            padding: 20px; background: var(--bg-dark); color: #e2e8f0; 
-            margin: 0; min-height: 100vh; overflow-x: hidden;
-        }
-
-        .card { 
-            background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center; 
-        }
-
-        h3 { 
-            margin: 0 0 20px 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
-            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-
-        .mode-selector {
-            display: flex; background: rgba(255,255,255,0.05); padding: 4px;
-            border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 20px;
-        }
-        .mode-btn {
-            flex: 1; padding: 10px; border: none; background: transparent;
-            color: #64748b; font-size: 0.75rem; font-weight: bold; cursor: pointer;
-            transition: 0.3s; border-radius: 8px; text-transform: uppercase;
-        }
-        .mode-btn.active { background: var(--neon-blue); color: white; box-shadow: 0 0 10px rgba(0, 210, 255, 0.4); }
-
-        #extract-all-btn {
-            display: none; width: 100%; padding: 14px; margin-bottom: 15px;
-            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
-            border: none; border-radius: 12px; color: white; font-weight: bold;
-            cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
-        }
-
-        .cloud-fetch {
-            display: flex; gap: 10px; margin-bottom: 20px;
+ex; gap: 10px; margin-bottom: 20px;
         }
         
         .cloud-fetch input[type="date"] {
@@ -264,14 +206,23 @@
 
     async function runExtraction(blob) {
         const start = Date.now();
-        try {
-            const base64 = await new Promise(res => {
-                const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
-            });
-            for (let model of ['groq','gemini']) {
-                document.getElementById('status').innerText = `SYNCING VIA ${model.toUpperCase()}...`;
+        const statusEl = document.getElementById('status'); // Helper for the status element
+        
+        // Wait for base64 conversion
+        const base64 = await new Promise(res => {
+            const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
+        });
+
+        let lastError = "Unknown Error";
+
+        for (let model of ['groq', 'gemini']) {
+            try {
+                statusEl.style.color = "#94a3b8"; // Normal color
+                statusEl.innerText = `SYNCING VIA ${model.toUpperCase()}...`;
+                
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
                 const res = await resp.json();
+                
                 if (res.status === "success") {
                     const duration = ((Date.now() - start) / 1000).toFixed(2);
                     const d = res.data;
@@ -281,9 +232,34 @@
                         direction: d.direction,
                         formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
                     };
+                } else {
+                    // If Apps Script connects but returns an error (e.g., { status: 'error', message: 'API key invalid' })
+                    throw new Error(res.message || res.error || "API returned an error");
                 }
+            } catch (e) {
+                console.warn(`${model.toUpperCase()} API failed:`, e);
+                lastError = e.message || "Network Error";
+                
+                // Show the error in the UI in red
+                statusEl.style.color = "var(--neon-red)"; 
+                statusEl.innerText = `${model.toUpperCase()} ERR: ${lastError.substring(0, 40).toUpperCase()}`;
+                
+                // Pause for 1.5 seconds so you can actually read the error before it falls back to Gemini
+                await new Promise(resolve => setTimeout(resolve, 1500));
             }
-        } catch (e) { return null; }
+        }
+        
+        // If it exits the loop, BOTH engines failed. Show the final error message.
+        statusEl.style.color = "var(--neon-red)";
+        statusEl.innerText = `EXTRACTION FAILED: ${lastError.toUpperCase()}`;
+        
+        // Reset the status back to normal after 5 seconds
+        setTimeout(() => { 
+            statusEl.innerText = "System Online"; 
+            statusEl.style.color = "#94a3b8"; 
+        }, 5000);
+        
+        return null;
     }
 
     async function saveTxn(blob, text, direction, status = 'success', duration = null, engine = null, shouldRender = true) {
