@@ -268,7 +268,7 @@
             const base64 = await new Promise(res => {
                 const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
             });
-            for (let model of [ 'groq']) {
+            for (let model of ['groq','gemini']) {
                 document.getElementById('status').innerText = `SYNCING VIA ${model.toUpperCase()}...`;
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
                 const res = await resp.json();
