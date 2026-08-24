@@ -112,6 +112,14 @@
         }
         #modal-img { max-width: 90%; max-height: 200px; border-radius: 16px; border: 2px solid var(--neon-blue); display: none; object-fit: contain; margin-bottom: 15px; }
         
+        #modal-info-card {
+            display: none; width: 90%; max-width: 450px; background: rgba(0, 210, 255, 0.05);
+            border: 1px dashed var(--neon-blue); border-radius: 16px; padding: 20px;
+            margin-bottom: 15px; text-align: center; font-family: monospace;
+        }
+        #modal-info-card .info-title { color: var(--neon-blue); font-size: 0.85rem; font-weight: bold; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+        #modal-info-card .info-desc { color: #94a3b8; font-size: 0.75rem; line-height: 1.4; }
+
         #modal-view {
             background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); 
             border-radius: 12px; padding: 15px; color: var(--neon-blue); 
@@ -134,7 +142,6 @@
         }
         .form-group input:focus { border-color: var(--neon-blue); }
 
-        /* Popup Trigger Button Styling */
         .select-popup-trigger {
             background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
             border-radius: 8px; padding: 8px 10px; color: var(--neon-blue);
@@ -143,7 +150,6 @@
         }
         .select-popup-trigger::after { content: '▼'; font-size: 0.6rem; color: #94a3b8; }
 
-        /* Popup Modal Container */
         #popup-overlay {
             display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
             z-index: 2000; align-items: center; justify-content: center; padding: 20px;
@@ -220,6 +226,11 @@
     <span class="close-btn" onclick="closeModal()">&times;</span>
     <img id="modal-img" src="">
     
+    <div id="modal-info-card">
+        <div class="info-title">☁️ Cloud Synchronized Record</div>
+        <div class="info-desc">Fetched directly from remote server logs. No local receipt screenshot stored. Data fields remain fully editable.</div>
+    </div>
+
     <div id="modal-view"></div>
 
     <div id="modal-form">
@@ -230,7 +241,6 @@
         <div class="form-group"><label>📝 Msg</label><input type="text" id="edit-imageMessage"></div>
         <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
         
-        <!-- Popup Dropdown Triggers -->
         <div class="form-group">
             <label>📊 Direction</label>
             <div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div>
@@ -247,7 +257,7 @@
         </div>
 
         <div class="form-group"><label>🏷️ Category</label><input type="text" id="edit-category"></div>
-        <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref"></div>
+        <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref" readonly style="opacity: 0.6;"></div>
     </div>
 
     <div class="modal-actions">
@@ -608,7 +618,6 @@
         return fields;
     }
 
-    // Popup Modal Selectors Logic
     function openPopup(type) {
         const overlay = document.getElementById('popup-overlay');
         const titleEl = document.getElementById('popup-title');
@@ -662,7 +671,6 @@
         document.getElementById(`trigger-${type}`).innerText = label;
 
         if (type === 'type') {
-            // Reset/update account to first valid option when Type changes
             const validAccounts = accountOptionsMap[value] || [];
             formDataState.account = validAccounts[0] || "";
             document.getElementById('trigger-account').innerText = formDataState.account || "Select Account";
@@ -675,11 +683,15 @@
         isEditing = false;
         
         const modalImg = document.getElementById('modal-img');
+        const modalInfoCard = document.getElementById('modal-info-card');
+
         if (!isCloudItem) {
             modalImg.src = img;
             modalImg.style.display = "block";
+            modalInfoCard.style.display = "none";
         } else {
             modalImg.style.display = "none";
+            modalInfoCard.style.display = "block";
         }
 
         document.getElementById('modal-view').innerText = text;
@@ -704,9 +716,14 @@
         const actionBtn = document.getElementById('action-btn');
         const viewEl = document.getElementById('modal-view');
         const formEl = document.getElementById('modal-form');
+        const modalImg = document.getElementById('modal-img');
+        const modalInfoCard = document.getElementById('modal-info-card');
 
         if (!isEditing) {
             isEditing = true;
+            modalImg.style.display = "none";
+            modalInfoCard.style.display = "none";
+
             const data = parseTextToFields(currentRawText);
             document.getElementById('edit-date').value = data.date;
             document.getElementById('edit-app').value = data.app;
@@ -720,7 +737,6 @@
             selectOptionValue('direction', data.direction, data.direction === 'IN' ? '🟢 IN' : '🔴 OUT');
             selectOptionValue('type', data.type, data.type);
             
-            // Validate account exists within current type list, else default
             const validAccs = accountOptionsMap[data.type] || [];
             const finalAcc = validAccs.includes(data.account) ? data.account : (validAccs[0] || "");
             selectOptionValue('account', finalAcc, finalAcc || "Select Account");
@@ -738,6 +754,9 @@
     async function saveEditedData() {
         if (!activeModalId) return;
         
+        const actionBtn = document.getElementById('action-btn');
+        actionBtn.innerText = "SYNCING...";
+
         const date = document.getElementById('edit-date').value;
         const app = document.getElementById('edit-app').value;
         const name = document.getElementById('edit-name').value;
@@ -745,33 +764,57 @@
         const imageMessage = document.getElementById('edit-imageMessage').value;
         const amount = document.getElementById('edit-amount').value;
         const category = document.getElementById('edit-category').value;
-        const ref = document.getElementById('edit-ref').value;
+        const refId = document.getElementById('edit-ref').value;
 
         const direction = formDataState.direction;
         const type = formDataState.type;
         const account = formDataState.account;
 
-        const newText = `📅 Date: ${date}\n📱 App: ${app}\n👤 Name: ${name}\n🆔 ID: ${txnId}\n📝 Msg: ${imageMessage}\n💰 Amount: ${amount}\n📊 Direction: ${direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${type}\n🏢 Account: ${account}\n🏷️ Category: ${category}\n🔗 Ref: ${ref}`;
-        
-        const db = await initDB();
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        const store = tx.objectStore(STORE_NAME);
-        
-        store.get(activeModalId).onsuccess = async (e) => {
-            const record = e.target.result;
-            if (record) {
-                record.text = newText;
-                record.direction = direction;
-                store.put(record);
-                renderHistory();
-                
-                const btn = document.getElementById('action-btn');
-                btn.innerText = "SAVED!";
-                setTimeout(() => {
-                    closeModal();
-                }, 800);
-            }
+        const payload = {
+            action: "update",
+            item: { date, app, name, txnId, imageMessage, amount, direction, type, account, category, refId }
         };
+
+        try {
+            // Using the Groq URL endpoint for syncing updates back to the backend script
+            const resp = await fetch(endpoints.groq, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await resp.json();
+
+            if (result.status === "success") {
+                const db = await initDB();
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                const store = tx.objectStore(STORE_NAME);
+                
+                store.get(activeModalId).onsuccess = async (e) => {
+                    const record = e.target.result;
+                    if (record) {
+                        record.text = result.data.formatted;
+                        record.direction = direction;
+                        store.put(record);
+                        renderHistory();
+                        
+                        actionBtn.innerText = "SAVED & SYNCED!";
+                        actionBtn.style.background = "var(--neon-blue)";
+                        setTimeout(() => closeModal(), 800);
+                    }
+                };
+            } else {
+                throw new Error(result.data || "Sync failed");
+            }
+        } catch (err) {
+            console.error("Backend Sync Error:", err);
+            actionBtn.innerText = "SYNC FAILED!";
+            actionBtn.style.background = "var(--neon-red)";
+            setTimeout(() => {
+                actionBtn.innerText = "Save Changes";
+                actionBtn.style.background = "var(--neon-green)";
+            }, 2000);
+        }
     }
     
     async function copyModalText() {
