@@ -108,11 +108,77 @@
 
         #modal { 
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
-            z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding-top: 60px;
+            z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding: 40px 20px;
         }
-        #modal-img { max-width: 90%; border-radius: 16px; border: 2px solid var(--neon-blue); display: none; }
-        #modal-data { padding: 30px; color: var(--neon-blue); font-family: monospace; width: 85%; line-height: 1.6; white-space: pre-wrap; }
-        .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; }
+        #modal-img { max-width: 90%; max-height: 200px; border-radius: 16px; border: 2px solid var(--neon-blue); display: none; object-fit: contain; margin-bottom: 15px; }
+        
+        #modal-view {
+            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); 
+            border-radius: 12px; padding: 15px; color: var(--neon-blue); 
+            font-family: monospace; width: 100%; max-width: 450px; line-height: 1.6; 
+            white-space: pre-wrap; text-align: left; font-size: 0.85rem;
+        }
+
+        #modal-form { 
+            background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); 
+            border-radius: 12px; padding: 15px; width: 100%; max-width: 450px; 
+            display: none; flex-direction: column; gap: 10px; text-align: left;
+        }
+        
+        .form-group { display: flex; flex-direction: column; gap: 4px; position: relative; }
+        .form-group label { font-size: 0.7rem; color: #94a3b8; font-family: monospace; text-transform: uppercase; }
+        .form-group input { 
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); 
+            border-radius: 8px; padding: 8px 10px; color: var(--neon-blue); 
+            font-family: monospace; font-size: 0.85rem; width: 100%;
+        }
+        .form-group input:focus { border-color: var(--neon-blue); }
+
+        /* Popup Trigger Button Styling */
+        .select-popup-trigger {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border);
+            border-radius: 8px; padding: 8px 10px; color: var(--neon-blue);
+            font-family: monospace; font-size: 0.85rem; width: 100%; cursor: pointer;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .select-popup-trigger::after { content: '▼'; font-size: 0.6rem; color: #94a3b8; }
+
+        /* Popup Modal Container */
+        #popup-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
+            z-index: 2000; align-items: center; justify-content: center; padding: 20px;
+            backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+        }
+        .popup-card {
+            background: #0b1120; border: 2px solid var(--neon-blue); border-radius: 16px;
+            width: 100%; max-width: 320px; max-height: 70vh; display: flex; flex-direction: column;
+            box-shadow: 0 0 30px rgba(0, 210, 255, 0.3); overflow: hidden;
+        }
+        .popup-header {
+            padding: 15px; font-family: monospace; font-size: 0.9rem; font-weight: bold;
+            color: var(--neon-blue); border-bottom: 1px solid var(--glass-border); text-transform: uppercase;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .popup-close { font-size: 1.2rem; cursor: pointer; color: #94a3b8; }
+        .popup-body { overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .popup-option {
+            padding: 12px; font-family: monospace; font-size: 0.9rem; color: #e2e8f0;
+            background: rgba(255, 255, 255, 0.02); border: 1px solid transparent;
+            border-radius: 8px; cursor: pointer; text-align: center; transition: 0.2s;
+        }
+        .popup-option:hover, .popup-option:active {
+            background: rgba(0, 210, 255, 0.1); border-color: var(--neon-blue); color: var(--neon-blue);
+        }
+
+        .modal-actions { display: flex; gap: 10px; width: 100%; max-width: 450px; margin-top: 15px; }
+        .modal-btn { 
+            flex: 1; padding: 12px; border-radius: 10px; font-weight: bold; 
+            cursor: pointer; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px;
+        }
+        #action-btn { background: var(--neon-blue); border: none; color: white; }
+        #copy-modal-btn { background: transparent; border: 1px solid var(--neon-blue); color: var(--neon-blue); }
+
+        .close-btn { position: fixed; top: 20px; right: 25px; font-size: 2.5rem; color: white; cursor: pointer; z-index: 1001; }
     </style>
 </head>
 <body>
@@ -149,15 +215,76 @@
     <div id="history-list"></div>
 </div>
 
-<div id="modal" onclick="closeModal()">
-    <span class="close-btn">&times;</span>
+<!-- Main Transaction Modal -->
+<div id="modal">
+    <span class="close-btn" onclick="closeModal()">&times;</span>
     <img id="modal-img" src="">
-    <div id="modal-data"></div>
+    
+    <div id="modal-view"></div>
+
+    <div id="modal-form">
+        <div class="form-group"><label>📅 Date</label><input type="text" id="edit-date"></div>
+        <div class="form-group"><label>📱 App</label><input type="text" id="edit-app"></div>
+        <div class="form-group"><label>👤 Name</label><input type="text" id="edit-name"></div>
+        <div class="form-group"><label>🆔 ID</label><input type="text" id="edit-txnId"></div>
+        <div class="form-group"><label>📝 Msg</label><input type="text" id="edit-imageMessage"></div>
+        <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
+        
+        <!-- Popup Dropdown Triggers -->
+        <div class="form-group">
+            <label>📊 Direction</label>
+            <div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div>
+        </div>
+
+        <div class="form-group">
+            <label>⇄ Type</label>
+            <div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div>
+        </div>
+
+        <div class="form-group">
+            <label>🏢 Account</label>
+            <div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div>
+        </div>
+
+        <div class="form-group"><label>🏷️ Category</label><input type="text" id="edit-category"></div>
+        <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref"></div>
+    </div>
+
+    <div class="modal-actions">
+        <button class="modal-btn" id="copy-modal-btn" onclick="copyModalText()">Copy Text</button>
+        <button class="modal-btn" id="action-btn" onclick="handleModalAction()">Edit</button>
+    </div>
+</div>
+
+<!-- Selection Popup Overlay -->
+<div id="popup-overlay" onclick="closePopupOverlay(event)">
+    <div class="popup-card" onclick="event.stopPropagation()">
+        <div class="popup-header">
+            <span id="popup-title">Select Option</span>
+            <span class="popup-close" onclick="closePopup()">&times;</span>
+        </div>
+        <div class="popup-body" id="popup-options-list"></div>
+    </div>
 </div>
 
 <script>
     const DB_NAME = "TxnVaultDB";
     const STORE_NAME = "transactions";
+    let activeModalId = null;
+    let isEditing = false;
+    let currentRawText = "";
+
+    const accountOptionsMap = {
+        "UPI": ["FI", "HDFC New", "HDFC Old", "ICICI", "Indusind", "Kotak", "RBL", "SBI"],
+        "Credit": ["HDFC PhonePe", "HDFC Tata Nenu", "ICICI Coral", "SBM Novio", "SBI BPCL"]
+    };
+
+    const formDataState = {
+        direction: 'IN',
+        type: 'UPI',
+        account: ''
+    };
+
     const endpoints = {
         gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
         groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
@@ -194,7 +321,7 @@
         };
     }
 
-        async function fetchFromCloud() {
+    async function fetchFromCloud() {
         const dateVal = document.getElementById('fetch-date').value;
         if(!dateVal) return;
         
@@ -210,8 +337,6 @@
             
             if (res.status === "success" && res.data && res.data.length > 0) {
                 const db = await initDB();
-                
-                // Get all existing local records to check for duplicates
                 const existingRecords = await new Promise(resolve => {
                     const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
                     req.onsuccess = () => resolve(req.result);
@@ -219,20 +344,14 @@
 
                 const tx = db.transaction(STORE_NAME, "readwrite");
                 const store = tx.objectStore(STORE_NAME);
-                
                 let addedCount = 0;
 
                 res.data.forEach(cloudItem => {
-                    // Check if this transaction already exists locally (matching by refId or text content)
                     const isDuplicate = existingRecords.some(localItem => {
-                        if (cloudItem.refId && localItem.text && localItem.text.includes(cloudItem.refId)) {
-                            return true;
-                        }
-                        // Fallback check against the formatted text block if refId is missing
+                        if (cloudItem.refId && localItem.text && localItem.text.includes(cloudItem.refId)) return true;
                         return localItem.text === cloudItem.formatted;
                     });
 
-                    // Only add if it doesn't already exist locally
                     if (!isDuplicate) {
                         store.add({ 
                             blob: null, 
@@ -261,12 +380,9 @@
         setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
     }
 
-
     async function runExtraction(blob) {
         const start = Date.now();
         const statusEl = document.getElementById('status');
-        
-        // Wait for base64 conversion
         const base64 = await new Promise(res => {
             const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob);
         });
@@ -279,18 +395,12 @@
                 statusEl.innerText = `SYNCING VIA ${model.toUpperCase()}...`;
                 
                 const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
-                
-                // Read the raw text first
                 const rawText = await resp.text(); 
                 
                 let res;
-                try {
-                    res = JSON.parse(rawText);
-                } catch (parseError) {
-                    throw new Error("Invalid JSON: " + rawText.substring(0, 50));
-                }
+                try { res = JSON.parse(rawText); } 
+                catch (parseError) { throw new Error("Invalid JSON: " + rawText.substring(0, 50)); }
                 
-                // Check if it's truly a success AND data is an object (not an error string)
                 if (res.status === "success" && typeof res.data === "object") {
                     const duration = ((Date.now() - start) / 1000).toFixed(2);
                     const d = res.data;
@@ -301,34 +411,21 @@
                         formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
                     };
                 } else {
-                    // FIX: Since your Apps Script sends the error message inside "data", we grab it here.
                     let errorDetails = res.data || res.message || res.status;
-                    
-                    // If the error detail is somehow still an object, turn it into a string
-                    if (typeof errorDetails === 'object') {
-                        errorDetails = JSON.stringify(errorDetails);
-                    }
-                    
+                    if (typeof errorDetails === 'object') errorDetails = JSON.stringify(errorDetails);
                     throw new Error(errorDetails);
                 }
             } catch (e) {
                 console.warn(`${model.toUpperCase()} API failed:`, e);
                 lastError = e.message || "Network Error";
-                
-                // Show the specific error string from res.data in the UI in red
                 statusEl.style.color = "var(--neon-red)"; 
                 statusEl.innerText = `${model.toUpperCase()} ERR: ${lastError.substring(0, 80)}`; 
-                
-                // Pause for 2.5 seconds to let you read it
                 await new Promise(resolve => setTimeout(resolve, 2500));
             }
         }
         
-        // Final fallback failure message
         statusEl.style.color = "var(--neon-red)";
         statusEl.innerText = `EXTRACTION FAILED: ${lastError.substring(0, 50)}`;
-        
-        // Reset after 5 seconds
         setTimeout(() => { 
             statusEl.innerText = "System Online"; 
             statusEl.style.color = "#94a3b8"; 
@@ -345,12 +442,10 @@
         if (shouldRender) { renderHistory(); checkPending(); }
     }
 
-        async function renderHistory() {
+    async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
-        
-        // FIX 1: Properly URL-encoded SVG to prevent HTML attribute breaking
         const cloudSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z'%3E%3C/path%3E%3C/svg%3E";
 
         req.onsuccess = () => {
@@ -363,7 +458,7 @@
                 const isCloudItem = !item.blob;
                 
                 div.onclick = (e) => {
-                    if (!div.dataset.swiped) openModal(url, item.status === 'pending' ? "--- PENDING ---" : item.text, isCloudItem);
+                    if (!div.dataset.swiped) openModal(item.id, url, item.status === 'pending' ? "--- PENDING ---" : item.text, isCloudItem);
                 };
 
                 let startX = 0;
@@ -389,7 +484,6 @@
                     else { div.style.transform = "translateX(0)"; setTimeout(() => div.dataset.swiped = "", 300); }
                 }, {passive: true});
 
-                // FIX 2: Target the "📅 Date" line for the title to match the reference image
                 const brief = item.status === 'pending' 
                     ? '[PENDING EXTRACTION]' 
                     : (item.text.split('\n').find(l => l.includes('📅')) || item.text.split('\n')[0]);
@@ -408,7 +502,6 @@
             });
         };
     }
-
 
     async function handleSwipeDelete(el, id) {
         el.style.transform = "translateX(-120%)";
@@ -449,7 +542,6 @@
     }
 
     window.addEventListener('load', async () => {
-        // Set date picker to today automatically
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('fetch-date').value = today;
 
@@ -493,7 +585,95 @@
         }
     });
 
-    function openModal(img, text, isCloudItem = false) {
+    function parseTextToFields(text) {
+        const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
+        if (!text || text === "--- PENDING ---") return fields;
+
+        text.split('\n').forEach(line => {
+            if (line.includes('📅 Date:')) fields.date = line.replace('📅 Date:', '').trim();
+            else if (line.includes('📱 App:')) fields.app = line.replace('📱 App:', '').trim();
+            else if (line.includes('👤 Name:')) fields.name = line.replace('👤 Name:', '').trim();
+            else if (line.includes('🆔 ID:')) fields.txnId = line.replace('🆔 ID:', '').trim();
+            else if (line.includes('📝 Msg:')) fields.imageMessage = line.replace('📝 Msg:', '').trim();
+            else if (line.includes('💰 Amount:')) fields.amount = line.replace('💰 Amount:', '').trim();
+            else if (line.includes('📊 Direction:')) fields.direction = line.includes('IN') ? 'IN' : 'OUT';
+            else if (line.includes('⇄ Type:')) {
+                const val = line.replace('⇄ Type:', '').trim();
+                fields.type = (val.toLowerCase() === 'credit') ? 'Credit' : 'UPI';
+            }
+            else if (line.includes('🏢 Account:')) fields.account = line.replace('🏢 Account:', '').trim();
+            else if (line.includes('🏷️ Category:')) fields.category = line.replace('🏷️ Category:', '').trim();
+            else if (line.includes('🔗 Ref:')) fields.ref = line.replace('🔗 Ref:', '').trim();
+        });
+        return fields;
+    }
+
+    // Popup Modal Selectors Logic
+    function openPopup(type) {
+        const overlay = document.getElementById('popup-overlay');
+        const titleEl = document.getElementById('popup-title');
+        const optionsListEl = document.getElementById('popup-options-list');
+        optionsListEl.innerHTML = "";
+
+        let items = [];
+        if (type === 'direction') {
+            titleEl.innerText = "Select Direction";
+            items = [
+                { label: "🟢 IN", value: "IN" },
+                { label: "🔴 OUT", value: "OUT" }
+            ];
+        } else if (type === 'type') {
+            titleEl.innerText = "Select Type";
+            items = [
+                { label: "Credit", value: "Credit" },
+                { label: "UPI", value: "UPI" }
+            ];
+        } else if (type === 'account') {
+            titleEl.innerText = "Select Account";
+            items = (accountOptionsMap[formDataState.type] || []).map(acc => ({ label: acc, value: acc }));
+        }
+
+        items.forEach(item => {
+            const opt = document.createElement('div');
+            opt.className = 'popup-option';
+            opt.textContent = item.label;
+            opt.onclick = () => {
+                selectOptionValue(type, item.value, item.label);
+                closePopup();
+            };
+            optionsListEl.appendChild(opt);
+        });
+
+        overlay.style.display = "flex";
+    }
+
+    function closePopup() {
+        document.getElementById('popup-overlay').style.display = "none";
+    }
+
+    function closePopupOverlay(e) {
+        if (e.target.id === 'popup-overlay') {
+            closePopup();
+        }
+    }
+
+    function selectOptionValue(type, value, label) {
+        formDataState[type] = value;
+        document.getElementById(`trigger-${type}`).innerText = label;
+
+        if (type === 'type') {
+            // Reset/update account to first valid option when Type changes
+            const validAccounts = accountOptionsMap[value] || [];
+            formDataState.account = validAccounts[0] || "";
+            document.getElementById('trigger-account').innerText = formDataState.account || "Select Account";
+        }
+    }
+
+    function openModal(id, img, text, isCloudItem = false) {
+        activeModalId = id;
+        currentRawText = text;
+        isEditing = false;
+        
         const modalImg = document.getElementById('modal-img');
         if (!isCloudItem) {
             modalImg.src = img;
@@ -501,12 +681,123 @@
         } else {
             modalImg.style.display = "none";
         }
-        document.getElementById('modal-data').innerText = text;
+
+        document.getElementById('modal-view').innerText = text;
+        document.getElementById('modal-view').style.display = "block";
+        document.getElementById('modal-form').style.display = "none";
+
+        document.getElementById('action-btn').innerText = "Edit";
+        document.getElementById('action-btn').style.background = "var(--neon-blue)";
+        document.getElementById('action-btn').style.color = "white";
+
         document.getElementById('modal').style.display = "flex";
-        navigator.clipboard.writeText(text);
     }
     
-    function closeModal() { document.getElementById('modal').style.display = "none"; }
+    function closeModal() { 
+        document.getElementById('modal').style.display = "none"; 
+        activeModalId = null;
+        isEditing = false;
+        closePopup();
+    }
+
+    function handleModalAction() {
+        const actionBtn = document.getElementById('action-btn');
+        const viewEl = document.getElementById('modal-view');
+        const formEl = document.getElementById('modal-form');
+
+        if (!isEditing) {
+            isEditing = true;
+            const data = parseTextToFields(currentRawText);
+            document.getElementById('edit-date').value = data.date;
+            document.getElementById('edit-app').value = data.app;
+            document.getElementById('edit-name').value = data.name;
+            document.getElementById('edit-txnId').value = data.txnId;
+            document.getElementById('edit-imageMessage').value = data.imageMessage;
+            document.getElementById('edit-amount').value = data.amount;
+            document.getElementById('edit-category').value = data.category;
+            document.getElementById('edit-ref').value = data.ref;
+
+            selectOptionValue('direction', data.direction, data.direction === 'IN' ? '🟢 IN' : '🔴 OUT');
+            selectOptionValue('type', data.type, data.type);
+            
+            // Validate account exists within current type list, else default
+            const validAccs = accountOptionsMap[data.type] || [];
+            const finalAcc = validAccs.includes(data.account) ? data.account : (validAccs[0] || "");
+            selectOptionValue('account', finalAcc, finalAcc || "Select Account");
+
+            viewEl.style.display = "none";
+            formEl.style.display = "flex";
+            actionBtn.innerText = "Save Changes";
+            actionBtn.style.background = "var(--neon-green)";
+            actionBtn.style.color = "#000";
+        } else {
+            saveEditedData();
+        }
+    }
+
+    async function saveEditedData() {
+        if (!activeModalId) return;
+        
+        const date = document.getElementById('edit-date').value;
+        const app = document.getElementById('edit-app').value;
+        const name = document.getElementById('edit-name').value;
+        const txnId = document.getElementById('edit-txnId').value;
+        const imageMessage = document.getElementById('edit-imageMessage').value;
+        const amount = document.getElementById('edit-amount').value;
+        const category = document.getElementById('edit-category').value;
+        const ref = document.getElementById('edit-ref').value;
+
+        const direction = formDataState.direction;
+        const type = formDataState.type;
+        const account = formDataState.account;
+
+        const newText = `📅 Date: ${date}\n📱 App: ${app}\n👤 Name: ${name}\n🆔 ID: ${txnId}\n📝 Msg: ${imageMessage}\n💰 Amount: ${amount}\n📊 Direction: ${direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${type}\n🏢 Account: ${account}\n🏷️ Category: ${category}\n🔗 Ref: ${ref}`;
+        
+        const db = await initDB();
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const store = tx.objectStore(STORE_NAME);
+        
+        store.get(activeModalId).onsuccess = async (e) => {
+            const record = e.target.result;
+            if (record) {
+                record.text = newText;
+                record.direction = direction;
+                store.put(record);
+                renderHistory();
+                
+                const btn = document.getElementById('action-btn');
+                btn.innerText = "SAVED!";
+                setTimeout(() => {
+                    closeModal();
+                }, 800);
+            }
+        };
+    }
+    
+    async function copyModalText() {
+        const textToCopy = isEditing ? getFormattedTextFromForm() : currentRawText;
+        try {
+            await navigator.clipboard.writeText(textToCopy);
+            const btn = document.getElementById('copy-modal-btn');
+            btn.innerText = "COPIED!";
+            setTimeout(() => { btn.innerText = "Copy Text"; }, 1500);
+        } catch (err) {
+            alert("Failed to copy clipboard.");
+        }
+    }
+
+    function getFormattedTextFromForm() {
+        const date = document.getElementById('edit-date').value;
+        const app = document.getElementById('edit-app').value;
+        const name = document.getElementById('edit-name').value;
+        const txnId = document.getElementById('edit-txnId').value;
+        const imageMessage = document.getElementById('edit-imageMessage').value;
+        const amount = document.getElementById('edit-amount').value;
+        const category = document.getElementById('edit-category').value;
+        const ref = document.getElementById('edit-ref').value;
+
+        return `📅 Date: ${date}\n📱 App: ${app}\n👤 Name: ${name}\n🆔 ID: ${txnId}\n📝 Msg: ${imageMessage}\n💰 Amount: ${amount}\n📊 Direction: ${formDataState.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${formDataState.type}\n🏢 Account: ${formDataState.account}\n🏷️ Category: ${category}\n🔗 Ref: ${ref}`;
+    }
     
     async function clearHistory() { 
         if(confirm("Purge All?")) { 
@@ -547,8 +838,7 @@
                     btn.style.borderColor = "var(--neon-blue)";
                 }, 2000);
             } catch (err) {
-                console.error("Clipboard write failed: ", err);
-                alert("Failed to copy. Please check your browser's clipboard permissions.");
+                alert("Failed to copy.");
             }
         };
     }
