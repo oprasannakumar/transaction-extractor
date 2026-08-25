@@ -105,7 +105,7 @@
         .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .engine-tag { color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; }
-        .label { color: #64748b; font-weight: normal; }
+        .meta-label { color: #64748b; font-weight: normal; }
 
         #modal {
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98);
@@ -302,6 +302,11 @@
 </div>
 
 <script>
+    // ─── CONFIGURATION ───────────────────────────────────────────────
+    // IMPORTANT: Replace this with your actual Worker URL (must include https://)
+    const CLOUDFLARE_WORKER_URL = "https://txn-vault-sa.oprasannak.workers.dev";
+    // ──────────────────────────────────────────────────────────────────
+
     const DB_NAME = "TxnVaultDB";
     const STORE_NAME = "transactions";
     let activeModalId = null;
@@ -317,11 +322,6 @@
         direction: 'IN',
         type: 'UPI',
         account: ''
-    };
-
-    const endpoints = {
-        gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
-        groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
     if ('serviceWorker' in navigator) {
@@ -357,14 +357,18 @@
 
     async function fetchFromCloud() {
         const dateVal = document.getElementById('fetch-date').value;
-        if(!dateVal) return;
+        if(!dateVal) {
+            showToast("Please select a date");
+            return;
+        }
 
         const statusEl = document.getElementById('status');
         statusEl.innerText = `SYNCING DATA FOR ${dateVal}...`;
 
         try {
-            const resp = await fetch(endpoints.gemini, {
+            const resp = await fetch(CLOUDFLARE_WORKER_URL, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: "fetch", date: dateVal })
             });
             const res = await resp.json();
@@ -422,15 +426,19 @@
         });
 
         let lastError = "Unknown Error";
+        const models = ['groq', 'gemini'];
 
-        for (let model of ['groq', 'gemini']) {
+        for (let model of models) {
             try {
                 statusEl.style.color = "#94a3b8";
                 statusEl.innerText = `SYNCING VIA ${model.toUpperCase()}...`;
 
-                const resp = await fetch(endpoints[model], { method: 'POST', body: JSON.stringify({ image: base64 })});
+                const resp = await fetch(CLOUDFLARE_WORKER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: "extract", image: base64, model: model })
+                });
                 const rawText = await resp.text();
-
                 let res;
                 try { res = JSON.parse(rawText); }
                 catch (parseError) { throw new Error("Invalid JSON: " + rawText.substring(0, 50)); }
@@ -476,7 +484,6 @@
         if (shouldRender) { renderHistory(); checkPending(); }
     }
 
-    // Parse transaction text to extract key fields
     function parseFields(text) {
         const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
         if (!text || text === "--- PENDING ---") return fields;
@@ -515,13 +522,11 @@
                 const url = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
                 const isCloudItem = !item.blob;
 
-                // Click on item -> open modal in view mode
                 div.addEventListener('click', (e) => {
                     if (div._swiping) return;
                     openModal(item.id, item.text, isCloudItem);
                 });
 
-                // Swipe to delete
                 let startX = 0;
                 div.addEventListener('touchstart', e => {
                     startX = e.touches[0].clientX;
@@ -546,11 +551,9 @@
                     setTimeout(() => div._swiping = false, 300);
                 }, {passive: true});
 
-                // Build display: Name as title, Date and Amount as separate labelled items
                 let nameDisplay = 'Unknown';
                 let dateDisplay = '';
                 let amountDisplay = '';
-                let msgDisplay = '';
 
                 if (item.status === 'pending') {
                     nameDisplay = '[Pending]';
@@ -559,10 +562,8 @@
                     nameDisplay = fields.name || 'Unknown';
                     dateDisplay = fields.date || '';
                     amountDisplay = fields.amount || '';
-                    msgDisplay = fields.imageMessage ? fields.imageMessage.substring(0, 20) + (fields.imageMessage.length > 20 ? '…' : '') : '';
                 }
 
-                // Build subtitle: Date and Amount with labels
                 let subParts = [];
                 if (dateDisplay) subParts.push(`<span class="meta-label">Date:</span> ${dateDisplay}`);
                 if (amountDisplay) subParts.push(`<span class="meta-label">Amount:</span> ${amountDisplay}`);
@@ -771,7 +772,6 @@
         document.getElementById('modal').style.display = "flex";
     }
 
-    // Attach tap/longpress to modal-view
     (function() {
         const viewEl = document.getElementById('modal-view');
         let pressTimer = null;
@@ -805,7 +805,6 @@
             }
             navigator.clipboard.writeText(text).then(() => {
                 showToast("Copied!");
-                // Close modal after successful copy
                 closeModal();
             }).catch(() => {
                 showToast("Copy failed");
@@ -900,8 +899,9 @@
         };
 
         try {
-            const resp = await fetch(endpoints.gemini, {
+            const resp = await fetch(CLOUDFLARE_WORKER_URL, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
