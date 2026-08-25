@@ -524,9 +524,8 @@
 
                 div.addEventListener('click', (e) => {
                     if (div._swiping) return;
-                    openModal(item.id, item.text, isCloudItem);
+                    openModal(item.id, item.text, isCloudItem, item.blob);
                 });
-
                 let startX = 0;
                 div.addEventListener('touchstart', e => {
                     startX = e.touches[0].clientX;
@@ -736,42 +735,53 @@
 
     // ─── Modal interaction ───────────────────────────────────────────────
 
-    function openModal(id, text, isCloudItem = false) {
-        activeModalId = id;
-        currentRawText = text || "No data available";
-        isEditMode = false;
+    function openModal(id, text, isCloudItem = false, blob = null) {
+    activeModalId = id;
+    currentRawText = text || "No data available";
+    isEditMode = false;
 
-        const viewEl = document.getElementById('modal-view');
-        const formEl = document.getElementById('modal-form');
-        const actionsEl = document.getElementById('modal-actions');
-        const imgEl = document.getElementById('modal-img');
-        const infoCard = document.getElementById('modal-info-card');
+    const viewEl = document.getElementById('modal-view');
+    const formEl = document.getElementById('modal-form');
+    const actionsEl = document.getElementById('modal-actions');
+    const imgEl = document.getElementById('modal-img');
+    const infoCard = document.getElementById('modal-info-card');
 
-        if (isCloudItem) {
-            imgEl.style.display = "none";
-            infoCard.style.display = "block";
-        } else {
-            imgEl.style.display = "none";
-            infoCard.style.display = "none";
+    // ─── Handle image ────────────────────────────────────────────────
+    if (blob) {
+        // Revoke any previous URL to avoid memory leaks
+        if (imgEl.dataset.objectUrl) {
+            URL.revokeObjectURL(imgEl.dataset.objectUrl);
         }
-
-        if (text && text !== "--- PENDING ---") {
-            viewEl.innerText = text;
-            viewEl.style.color = "#e2e8f0";
-            viewEl.style.fontStyle = "normal";
-        } else {
-            viewEl.innerText = "⏳ Pending transaction – no data extracted yet.";
-            viewEl.style.color = "#94a3b8";
-            viewEl.style.fontStyle = "italic";
-        }
-
-        viewEl.style.display = "block";
-        formEl.style.display = "none";
-        actionsEl.classList.remove('show');
-
-        document.getElementById('modal').style.display = "flex";
+        const url = URL.createObjectURL(blob);
+        imgEl.src = url;
+        imgEl.style.display = "block";
+        imgEl.dataset.objectUrl = url; // store for later revocation
+        infoCard.style.display = "none";
+    } else if (isCloudItem) {
+        imgEl.style.display = "none";
+        infoCard.style.display = "block";
+    } else {
+        imgEl.style.display = "none";
+        infoCard.style.display = "none";
     }
 
+    // ─── Show text ──────────────────────────────────────────────────
+    if (text && text !== "--- PENDING ---") {
+        viewEl.innerText = text;
+        viewEl.style.color = "#e2e8f0";
+        viewEl.style.fontStyle = "normal";
+    } else {
+        viewEl.innerText = "⏳ Pending transaction – no data extracted yet.";
+        viewEl.style.color = "#94a3b8";
+        viewEl.style.fontStyle = "italic";
+    }
+
+    viewEl.style.display = "block";
+    formEl.style.display = "none";
+    actionsEl.classList.remove('show');
+
+    document.getElementById('modal').style.display = "flex";
+}
     (function() {
         const viewEl = document.getElementById('modal-view');
         let pressTimer = null;
@@ -865,6 +875,12 @@
     }
 
     function closeModal() {
+ 
+           const imgEl = document.getElementById('modal-img');
+            if (imgEl.dataset.objectUrl) {
+                URL.revokeObjectURL(imgEl.dataset.objectUrl);
+                delete imgEl.dataset.objectUrl;
+            }
         document.getElementById('modal').style.display = "none";
         activeModalId = null;
         isEditMode = false;
