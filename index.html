@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Txn Vault | Neon Pro</title>
     <link rel="manifest" href="manifest.json">
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client"></script>
     <style>
         :root {
             --neon-blue: #00d2ff;
@@ -111,8 +113,16 @@
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98);
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding: 40px 20px;
         }
-        #modal-img { max-width: 90%; max-height: 50vh; min-height:300px; border-radius: 16px; border: 2px solid var(--neon-blue); display: none; object-fit: contain; margin-bottom: 15px; }
-
+        #modal-img {
+            max-width: 90%;
+            max-height: 50vh;
+            min-height: 300px;
+            border-radius: 16px;
+            border: 2px solid var(--neon-blue);
+            display: none;
+            object-fit: contain;
+            margin-bottom: 15px;
+        }
         #modal-info-card {
             display: none; width: 90%; max-width: 450px; background: rgba(0, 210, 255, 0.05);
             border: 1px dashed var(--neon-blue); border-radius: 16px; padding: 20px;
@@ -207,12 +217,59 @@
 
         .pending-message { color: #94a3b8; font-style: italic; }
         .meta-label { color: #64748b; font-weight: normal; }
+
+        /* ─── Login section ─── */
+        .login-section {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        #user-info {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+        }
+        #user-info button {
+            background: var(--neon-red);
+            border: none;
+            padding: 4px 12px;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h3>Data Core</h3>
+
+    <!-- ─── Google Login ─── -->
+    <div class="login-section">
+        <div id="g_id_onload"
+             data-client_id="455353267035-tvggeucvch4scohdpp1bucugkaeb5a2g.apps.googleusercontent.com"
+             data-context="signin"
+             data-ux_mode="popup"
+             data-callback="onGoogleSignIn"
+             data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-shape="rectangular"
+             data-theme="outline"
+             data-text="signin_with"
+             data-size="large"
+             data-logo_alignment="left">
+        </div>
+        <div id="user-info">
+            <span id="user-email"></span>
+            <button onclick="signOut()">Sign Out</button>
+        </div>
+    </div>
 
     <div class="mode-selector">
         <button class="mode-btn" id="btn-standard" onclick="setMode('standard')">Standard</button>
@@ -246,18 +303,15 @@
 <!-- Toast -->
 <div id="toast" class="toast">Copied!</div>
 
-<!-- Main Transaction Modal -->
+<!-- Modal -->
 <div id="modal">
     <span class="close-btn" onclick="closeModal()">&times;</span>
     <img id="modal-img" src="">
-
     <div id="modal-info-card">
         <div class="info-title">☁️ Cloud Synchronized Record</div>
         <div class="info-desc">Fetched directly from remote server logs. No local receipt screenshot stored.</div>
     </div>
-
     <div id="modal-view">Select a transaction to view</div>
-
     <div id="modal-form">
         <div class="form-group"><label>📅 Date</label><input type="text" id="edit-date"></div>
         <div class="form-group"><label>📱 App</label><input type="text" id="edit-app"></div>
@@ -265,74 +319,179 @@
         <div class="form-group"><label>🆔 ID</label><input type="text" id="edit-txnId" readonly style="opacity: 0.6;"></div>
         <div class="form-group"><label>📝 Narration</label><input type="text" id="edit-imageMessage"></div>
         <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
-
-        <div class="form-group">
-            <label>📊 Direction</label>
-            <div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div>
-        </div>
-
-        <div class="form-group">
-            <label>⇄ Type</label>
-            <div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div>
-        </div>
-
-        <div class="form-group">
-            <label>🏢 Account</label>
-            <div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div>
-        </div>
-
+        <div class="form-group"><label>📊 Direction</label><div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div></div>
+        <div class="form-group"><label>⇄ Type</label><div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div></div>
+        <div class="form-group"><label>🏢 Account</label><div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div></div>
         <div class="form-group"><label>🏷️ Category</label><input type="text" id="edit-category"></div>
         <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref"></div>
     </div>
-
     <div class="modal-actions" id="modal-actions">
         <button class="modal-btn" id="action-btn" onclick="saveEditedData()">Save</button>
     </div>
 </div>
 
-<!-- Selection Popup Overlay -->
+<!-- Popup Overlay -->
 <div id="popup-overlay" onclick="closePopupOverlay(event)">
     <div class="popup-card" onclick="event.stopPropagation()">
-        <div class="popup-header">
-            <span id="popup-title">Select Option</span>
-            <span class="popup-close" onclick="closePopup()">&times;</span>
-        </div>
+        <div class="popup-header"><span id="popup-title">Select Option</span><span class="popup-close" onclick="closePopup()">&times;</span></div>
         <div class="popup-body" id="popup-options-list"></div>
     </div>
 </div>
 
 <script>
     // ─── CONFIGURATION ───────────────────────────────────────────────
-    // IMPORTANT: Replace this with your actual Worker URL (must include https://)
-    const CLOUDFLARE_WORKER_URL = "https://txn-vault-sa.oprasannak.workers.dev";
+    // REPLACE THESE WITH YOUR ACTUAL VALUES
+    const CLOUDFLARE_WORKER_URL = "https://financetokens.oprasannak.workers.dev";
+    const GOOGLE_CLIENT_ID = "455353267035-tvggeucvch4scohdpp1bucugkaeb5a2g.apps.googleusercontent.com";
     // ──────────────────────────────────────────────────────────────────
 
-    const DB_NAME = "TxnVaultDB";
-    const STORE_NAME = "transactions";
+    // ─── State ──────────────────────────────────────────────────────
+    let userAccessToken = null;
+    let userEmail = null;
     let activeModalId = null;
     let currentRawText = "";
     let isEditMode = false;
 
+    const DB_NAME = "TxnVaultDB";
+    const STORE_NAME = "transactions";
     const accountOptionsMap = {
         "UPI": ["FI", "HDFC New", "HDFC Old", "ICICI", "Indusind", "Kotak", "RBL", "SBI"],
         "Credit": ["HDFC PhonePe", "HDFC Tata Nenu", "ICICI Coral", "SBM Novio", "SBI BPCL"]
     };
+    const formDataState = { direction: 'IN', type: 'UPI', account: '' };
 
-    const formDataState = {
-        direction: 'IN',
-        type: 'UPI',
-        account: ''
-    };
+// ─── Google Sign-In & Session Management ────────────────────────
 
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(console.error);
+let tokenClient = null;
+
+function updateAuthUI(email) {
+    document.getElementById('user-email').textContent = 'Logged in as: ' + email;
+    document.getElementById('user-info').style.display = 'flex';
+    
+    const signinBtn = document.querySelector('.g_id_signin');
+    if (signinBtn) signinBtn.style.display = 'none';
+}
+
+function initGoogleClient() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly',
+        callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+                console.error('Token error:', tokenResponse);
+                signOut(true);
+                showToast('Session expired. Please sign in.');
+                return;
+            }
+            
+            userAccessToken = tokenResponse.access_token;
+            
+            // Safely calculate when the token expires (default ~1 hour)
+            const expiresIn = tokenResponse.expires_in ? parseInt(tokenResponse.expires_in, 10) : 3500;
+            const expiry = Date.now() + (expiresIn * 1000);
+            
+            // Save session state
+            localStorage.setItem('userAccessToken', userAccessToken);
+            localStorage.setItem('tokenExpiry', expiry.toString());
+            localStorage.setItem('userEmail', userEmail);
+
+            showToast('Signed in as ' + userEmail);
+            initializeSheet();
+        },
+    });
+}
+
+function onGoogleSignIn(response) {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    userEmail = payload.email;
+    updateAuthUI(userEmail);
+
+    // IMPORTANT: Check if we ALREADY have a valid token for this session.
+    // This stops Google from causing infinite popup loops on refresh.
+    const savedToken = localStorage.getItem('userAccessToken');
+    const expiry = localStorage.getItem('tokenExpiry');
+    
+    if (savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
+        userAccessToken = savedToken;
+        initializeSheet();
+    } else {
+        if (!tokenClient) initGoogleClient();
+        tokenClient.requestAccessToken();
     }
+}
 
+function restoreSession() {
+    const savedToken = localStorage.getItem('userAccessToken');
+    const expiry = localStorage.getItem('tokenExpiry');
+    const savedEmail = localStorage.getItem('userEmail');
+
+    // Only restore if ALL parts of the session exist and the token is NOT expired
+    if (savedEmail && savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
+        userEmail = savedEmail;
+        userAccessToken = savedToken;
+        updateAuthUI(userEmail);
+        initializeSheet();
+    } else {
+        // If token is expired (after 1 hour), silently clean up so the user can click sign-in.
+        // Do NOT auto-request a token here, as browser popup blockers will intercept it.
+        if (savedEmail || savedToken) {
+            signOut(false); 
+        }
+    }
+}
+
+async function initializeSheet() {
+    if (!userAccessToken) return;
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'init',
+                accessToken: userAccessToken,
+                email: userEmail,
+            }),
+        });
+        const initData = await initResp.json();
+        if (initData.status === 'success') {
+            showToast('Sheet ready!');
+            fetchFromCloud(); // Auto-fetch today's data
+        } else {
+            showToast('Failed to initialize sheet');
+        }
+    } catch (err) {
+        console.error('Init error:', err);
+        showToast('Network error initializing sheet');
+    }
+}
+
+function signOut(showToastMsg = true) {
+    userAccessToken = null;
+    userEmail = null;
+    
+    localStorage.removeItem('userAccessToken');
+    localStorage.removeItem('tokenExpiry');
+    localStorage.removeItem('userEmail');
+    
+    document.getElementById('user-info').style.display = 'none';
+    const signinBtn = document.querySelector('.g_id_signin');
+    if (signinBtn) signinBtn.style.display = 'block';
+    
+    document.getElementById('history-list').innerHTML = '';
+    if (showToastMsg) showToast('Signed out');
+}
+
+// Call instantly to prevent the UI from flickering on refresh
+restoreSession();
+
+// ─── IndexedDB Helpers ──────────────────────────────────────────
     const initDB = () => new Promise(res => {
         const req = indexedDB.open(DB_NAME, 1);
         req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
         req.onsuccess = e => res(e.target.result);
     });
+
+    // ─── UI / Mode ──────────────────────────────────────────────────
 
     function setMode(mode) {
         localStorage.setItem('txnVaultMode', mode);
@@ -355,13 +514,28 @@
         };
     }
 
+    // ─── Toast ──────────────────────────────────────────────────────
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toast._timeout);
+        toast._timeout = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    // ─── Cloud Sync ────────────────────────────────────────────────
+
     async function fetchFromCloud() {
-        const dateVal = document.getElementById('fetch-date').value;
-        if(!dateVal) {
-            showToast("Please select a date");
+        if (!userAccessToken) {
+            showToast('Please sign in first');
             return;
         }
-
+        const dateVal = document.getElementById('fetch-date').value;
+        if (!dateVal) {
+            showToast('Please select a date');
+            return;
+        }
         const statusEl = document.getElementById('status');
         statusEl.innerText = `SYNCING DATA FOR ${dateVal}...`;
 
@@ -369,7 +543,13 @@
             const resp = await fetch(CLOUDFLARE_WORKER_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: "fetch", date: dateVal })
+                body: JSON.stringify({
+                    action: "fetch",
+                    date: dateVal,
+                    accessToken: userAccessToken,
+                    email: userEmail,
+                    existingRefIds: []
+                })
             });
             const res = await resp.json();
 
@@ -389,7 +569,6 @@
                         if (cloudItem.refId && localItem.text && localItem.text.includes(cloudItem.refId)) return true;
                         return localItem.text === cloudItem.formatted;
                     });
-
                     if (!isDuplicate) {
                         store.add({
                             blob: null,
@@ -418,7 +597,13 @@
         setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
     }
 
+    // ─── Extraction ─────────────────────────────────────────────────
+
     async function runExtraction(blob) {
+        if (!userAccessToken) {
+            showToast('Please sign in first');
+            return null;
+        }
         const start = Date.now();
         const statusEl = document.getElementById('status');
         const base64 = await new Promise(res => {
@@ -436,7 +621,13 @@
                 const resp = await fetch(CLOUDFLARE_WORKER_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: "extract", image: base64, model: model })
+                    body: JSON.stringify({
+                        action: "extract",
+                        image: base64,
+                        model: model,
+                        accessToken: userAccessToken,
+                        email: userEmail,
+                    })
                 });
                 const rawText = await resp.text();
                 let res;
@@ -476,6 +667,8 @@
         return null;
     }
 
+    // ─── Save Transaction ───────────────────────────────────────────
+
     async function saveTxn(blob, text, direction, status = 'success', duration = null, engine = null, shouldRender = true) {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
@@ -484,10 +677,11 @@
         if (shouldRender) { renderHistory(); checkPending(); }
     }
 
+    // ─── Parse Fields ──────────────────────────────────────────────
+
     function parseFields(text) {
         const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
         if (!text || text === "--- PENDING ---") return fields;
-
         text.split('\n').forEach(line => {
             if (line.includes('📅 Date:')) fields.date = line.replace('📅 Date:', '').trim();
             else if (line.includes('📱 App:')) fields.app = line.replace('📱 App:', '').trim();
@@ -507,6 +701,8 @@
         return fields;
     }
 
+    // ─── Render History ────────────────────────────────────────────
+
     async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
@@ -518,7 +714,6 @@
             req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
                 div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
-
                 const url = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
                 const isCloudItem = !item.blob;
 
@@ -526,6 +721,8 @@
                     if (div._swiping) return;
                     openModal(item.id, item.text, isCloudItem, item.blob);
                 });
+
+                // Swipe to delete
                 let startX = 0;
                 div.addEventListener('touchstart', e => {
                     startX = e.touches[0].clientX;
@@ -553,7 +750,6 @@
                 let nameDisplay = 'Unknown';
                 let dateDisplay = '';
                 let amountDisplay = '';
-
                 if (item.status === 'pending') {
                     nameDisplay = '[Pending]';
                 } else if (item.text) {
@@ -583,13 +779,7 @@
         };
     }
 
-    function showToast(msg) {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.classList.add('show');
-        clearTimeout(toast._timeout);
-        toast._timeout = setTimeout(() => toast.classList.remove('show'), 1500);
-    }
+    // ─── Swipe Delete ───────────────────────────────────────────────
 
     async function handleSwipeDelete(el, id) {
         el.style.transform = "translateX(-120%)";
@@ -602,7 +792,13 @@
         }, 300);
     }
 
+    // ─── Batch Processing ──────────────────────────────────────────
+
     async function processBatchQueue() {
+        if (!userAccessToken) {
+            showToast('Please sign in first');
+            return;
+        }
         const db = await initDB();
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
         req.onsuccess = async () => {
@@ -629,159 +825,54 @@
         };
     }
 
-    window.addEventListener('load', async () => {
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('fetch-date').value = today;
-
-        updateModeUI();
-        const db = await initDB();
-        // Auto-clean old entries (keep 1 day)
-        const cleanTx = db.transaction(STORE_NAME, "readwrite");
-        const cleanStore = cleanTx.objectStore(STORE_NAME);
-        const cleanReq = cleanStore.getAll();
-        cleanReq.onsuccess = () => {
-            const now = Date.now();
-            const oneDay = 24 * 60 * 60 * 1000;
-            cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
-        };
-
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('shared')) {
-            const cache = await caches.open('shared-data');
-            const keys = await cache.keys();
-            const mode = localStorage.getItem('txnVaultMode') || 'standard';
-
-            for (let key of keys) {
-                const resp = await cache.match(key);
-                const blob = await resp.blob();
-                await cache.delete(key);
-
-                if (mode === 'batch') {
-                    await saveTxn(blob, "", "", 'pending', null, null, false);
-                } else {
-                    document.getElementById('p-cont').style.display = 'block';
-                    document.getElementById('preview').src = URL.createObjectURL(blob);
-                    const res = await runExtraction(blob);
-                    if (res) await saveTxn(blob, res.formatted, res.direction, 'success', res.duration, res.engine, false);
-                    document.getElementById('p-cont').style.display = 'none';
-                }
-            }
-            window.history.replaceState({}, '', window.location.pathname);
-            renderHistory();
-            checkPending();
-        } else {
-            renderHistory();
-        }
-    });
-
-    function openPopup(type) {
-        const overlay = document.getElementById('popup-overlay');
-        const titleEl = document.getElementById('popup-title');
-        const optionsListEl = document.getElementById('popup-options-list');
-        optionsListEl.innerHTML = "";
-
-        let items = [];
-        if (type === 'direction') {
-            titleEl.innerText = "Select Direction";
-            items = [
-                { label: "🟢 IN", value: "IN" },
-                { label: "🔴 OUT", value: "OUT" }
-            ];
-        } else if (type === 'type') {
-            titleEl.innerText = "Select Type";
-            items = [
-                { label: "Credit", value: "Credit" },
-                { label: "UPI", value: "UPI" }
-            ];
-        } else if (type === 'account') {
-            titleEl.innerText = "Select Account";
-            items = (accountOptionsMap[formDataState.type] || []).map(acc => ({ label: acc, value: acc }));
-        }
-
-        items.forEach(item => {
-            const opt = document.createElement('div');
-            opt.className = 'popup-option';
-            opt.textContent = item.label;
-            opt.onclick = () => {
-                selectOptionValue(type, item.value, item.label);
-                closePopup();
-            };
-            optionsListEl.appendChild(opt);
-        });
-
-        overlay.style.display = "flex";
-    }
-
-    function closePopup() {
-        document.getElementById('popup-overlay').style.display = "none";
-    }
-
-    function closePopupOverlay(e) {
-        if (e.target.id === 'popup-overlay') {
-            closePopup();
-        }
-    }
-
-    function selectOptionValue(type, value, label) {
-        formDataState[type] = value;
-        document.getElementById(`trigger-${type}`).innerText = label;
-
-        if (type === 'type') {
-            const validAccounts = accountOptionsMap[value] || [];
-            formDataState.account = validAccounts[0] || "";
-            document.getElementById('trigger-account').innerText = formDataState.account || "Select Account";
-        }
-    }
-
-    // ─── Modal interaction ───────────────────────────────────────────────
+    // ─── Modal ──────────────────────────────────────────────────────
 
     function openModal(id, text, isCloudItem = false, blob = null) {
-    activeModalId = id;
-    currentRawText = text || "No data available";
-    isEditMode = false;
+        activeModalId = id;
+        currentRawText = text || "No data available";
+        isEditMode = false;
 
-    const viewEl = document.getElementById('modal-view');
-    const formEl = document.getElementById('modal-form');
-    const actionsEl = document.getElementById('modal-actions');
-    const imgEl = document.getElementById('modal-img');
-    const infoCard = document.getElementById('modal-info-card');
+        const viewEl = document.getElementById('modal-view');
+        const formEl = document.getElementById('modal-form');
+        const actionsEl = document.getElementById('modal-actions');
+        const imgEl = document.getElementById('modal-img');
+        const infoCard = document.getElementById('modal-info-card');
 
-    // ─── Handle image ────────────────────────────────────────────────
-    if (blob) {
-        // Revoke any previous URL to avoid memory leaks
-        if (imgEl.dataset.objectUrl) {
-            URL.revokeObjectURL(imgEl.dataset.objectUrl);
+        if (blob) {
+            if (imgEl.dataset.objectUrl) {
+                URL.revokeObjectURL(imgEl.dataset.objectUrl);
+            }
+            const url = URL.createObjectURL(blob);
+            imgEl.src = url;
+            imgEl.style.display = "block";
+            imgEl.dataset.objectUrl = url;
+            infoCard.style.display = "none";
+        } else if (isCloudItem) {
+            imgEl.style.display = "none";
+            infoCard.style.display = "block";
+        } else {
+            imgEl.style.display = "none";
+            infoCard.style.display = "none";
         }
-        const url = URL.createObjectURL(blob);
-        imgEl.src = url;
-        imgEl.style.display = "block";
-        imgEl.dataset.objectUrl = url; // store for later revocation
-        infoCard.style.display = "none";
-    } else if (isCloudItem) {
-        imgEl.style.display = "none";
-        infoCard.style.display = "block";
-    } else {
-        imgEl.style.display = "none";
-        infoCard.style.display = "none";
+
+        if (text && text !== "--- PENDING ---") {
+            viewEl.innerText = text;
+            viewEl.style.color = "#e2e8f0";
+            viewEl.style.fontStyle = "normal";
+        } else {
+            viewEl.innerText = "⏳ Pending transaction – no data extracted yet.";
+            viewEl.style.color = "#94a3b8";
+            viewEl.style.fontStyle = "italic";
+        }
+
+        viewEl.style.display = "block";
+        formEl.style.display = "none";
+        actionsEl.classList.remove('show');
+        document.getElementById('modal').style.display = "flex";
     }
 
-    // ─── Show text ──────────────────────────────────────────────────
-    if (text && text !== "--- PENDING ---") {
-        viewEl.innerText = text;
-        viewEl.style.color = "#e2e8f0";
-        viewEl.style.fontStyle = "normal";
-    } else {
-        viewEl.innerText = "⏳ Pending transaction – no data extracted yet.";
-        viewEl.style.color = "#94a3b8";
-        viewEl.style.fontStyle = "italic";
-    }
+    // ─── Modal tap/long press ──────────────────────────────────────
 
-    viewEl.style.display = "block";
-    formEl.style.display = "none";
-    actionsEl.classList.remove('show');
-
-    document.getElementById('modal').style.display = "flex";
-}
     (function() {
         const viewEl = document.getElementById('modal-view');
         let pressTimer = null;
@@ -875,12 +966,11 @@
     }
 
     function closeModal() {
- 
-           const imgEl = document.getElementById('modal-img');
-            if (imgEl.dataset.objectUrl) {
-                URL.revokeObjectURL(imgEl.dataset.objectUrl);
-                delete imgEl.dataset.objectUrl;
-            }
+        const imgEl = document.getElementById('modal-img');
+        if (imgEl.dataset.objectUrl) {
+            URL.revokeObjectURL(imgEl.dataset.objectUrl);
+            delete imgEl.dataset.objectUrl;
+        }
         document.getElementById('modal').style.display = "none";
         activeModalId = null;
         isEditMode = false;
@@ -890,8 +980,73 @@
         document.getElementById('modal-actions').classList.remove('show');
     }
 
+    // ─── Popup (select options) ─────────────────────────────────────
+
+    function openPopup(type) {
+        const overlay = document.getElementById('popup-overlay');
+        const titleEl = document.getElementById('popup-title');
+        const optionsListEl = document.getElementById('popup-options-list');
+        optionsListEl.innerHTML = "";
+
+        let items = [];
+        if (type === 'direction') {
+            titleEl.innerText = "Select Direction";
+            items = [
+                { label: "🟢 IN", value: "IN" },
+                { label: "🔴 OUT", value: "OUT" }
+            ];
+        } else if (type === 'type') {
+            titleEl.innerText = "Select Type";
+            items = [
+                { label: "Credit", value: "Credit" },
+                { label: "UPI", value: "UPI" }
+            ];
+        } else if (type === 'account') {
+            titleEl.innerText = "Select Account";
+            items = (accountOptionsMap[formDataState.type] || []).map(acc => ({ label: acc, value: acc }));
+        }
+
+        items.forEach(item => {
+            const opt = document.createElement('div');
+            opt.className = 'popup-option';
+            opt.textContent = item.label;
+            opt.onclick = () => {
+                selectOptionValue(type, item.value, item.label);
+                closePopup();
+            };
+            optionsListEl.appendChild(opt);
+        });
+        overlay.style.display = "flex";
+    }
+
+    function closePopup() {
+        document.getElementById('popup-overlay').style.display = "none";
+    }
+
+    function closePopupOverlay(e) {
+        if (e.target.id === 'popup-overlay') {
+            closePopup();
+        }
+    }
+
+    function selectOptionValue(type, value, label) {
+        formDataState[type] = value;
+        document.getElementById(`trigger-${type}`).innerText = label;
+        if (type === 'type') {
+            const validAccounts = accountOptionsMap[value] || [];
+            formDataState.account = validAccounts[0] || "";
+            document.getElementById('trigger-account').innerText = formDataState.account || "Select Account";
+        }
+    }
+
+    // ─── Save Edited Data ──────────────────────────────────────────
+
     async function saveEditedData() {
         if (!activeModalId) return;
+        if (!userAccessToken) {
+            showToast('Please sign in first');
+            return;
+        }
 
         const actionBtn = document.getElementById('action-btn');
         actionBtn.innerText = "SYNCING...";
@@ -911,7 +1066,9 @@
 
         const payload = {
             action: "update",
-            item: { date, app, name, txnId, imageMessage, amount, direction, type, account, category, refId }
+            item: { date, app, name, txnId, imageMessage, amount, direction, type, account, category, refId },
+            accessToken: userAccessToken,
+            email: userEmail,
         };
 
         try {
@@ -975,6 +1132,8 @@
         }
     }
 
+    // ─── Clear / Copy All ──────────────────────────────────────────
+
     async function clearHistory() {
         if(confirm("Purge All?")) {
             const db = await initDB();
@@ -1018,6 +1177,54 @@
             }
         };
     }
+
+    // ─── Initialisation ────────────────────────────────────────────
+
+    window.addEventListener('load', async () => {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('fetch-date').value = today;
+
+        updateModeUI();
+        restoreSession();
+        const db = await initDB();
+        // Auto-clean old entries (keep 1 day)
+        const cleanTx = db.transaction(STORE_NAME, "readwrite");
+        const cleanStore = cleanTx.objectStore(STORE_NAME);
+        const cleanReq = cleanStore.getAll();
+        cleanReq.onsuccess = () => {
+            const now = Date.now();
+            const oneDay = 24 * 60 * 60 * 1000;
+            cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('shared')) {
+            const cache = await caches.open('shared-data');
+            const keys = await cache.keys();
+            const mode = localStorage.getItem('txnVaultMode') || 'standard';
+
+            for (let key of keys) {
+                const resp = await cache.match(key);
+                const blob = await resp.blob();
+                await cache.delete(key);
+
+                if (mode === 'batch') {
+                    await saveTxn(blob, "", "", 'pending', null, null, false);
+                } else {
+                    document.getElementById('p-cont').style.display = 'block';
+                    document.getElementById('preview').src = URL.createObjectURL(blob);
+                    const res = await runExtraction(blob);
+                    if (res) await saveTxn(blob, res.formatted, res.direction, 'success', res.duration, res.engine, false);
+                    document.getElementById('p-cont').style.display = 'none';
+                }
+            }
+            window.history.replaceState({}, '', window.location.pathname);
+            renderHistory();
+            checkPending();
+        } else {
+            renderHistory();
+        }
+    });
 </script>
 </body>
 </html>
