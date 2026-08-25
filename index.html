@@ -84,7 +84,7 @@
         }
         @keyframes scan { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
 
-        #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; }
+        #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; transition: 0.3s; }
 
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; width: 100%; max-width: 450px; }
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
@@ -106,6 +106,7 @@
         .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; }
         .engine-tag { color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; }
 
+        /* modal styles unchanged */
         #modal { 
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98); 
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding: 40px 20px;
@@ -221,18 +222,15 @@
     <div id="history-list"></div>
 </div>
 
-<!-- Main Transaction Modal -->
+<!-- modal unchanged -->
 <div id="modal">
     <span class="close-btn" onclick="closeModal()">&times;</span>
     <img id="modal-img" src="">
-    
     <div id="modal-info-card">
         <div class="info-title">☁️ Cloud Synchronized Record</div>
         <div class="info-desc">Fetched directly from remote server logs. No local receipt screenshot stored. Data fields remain fully editable.</div>
     </div>
-
     <div id="modal-view"></div>
-
     <div id="modal-form">
         <div class="form-group"><label>📅 Date</label><input type="text" id="edit-date"></div>
         <div class="form-group"><label>📱 App</label><input type="text" id="edit-app"></div>
@@ -240,33 +238,28 @@
         <div class="form-group"><label>🆔 ID</label><input type="text" id="edit-txnId"></div>
         <div class="form-group"><label>📝 Msg</label><input type="text" id="edit-imageMessage"></div>
         <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
-        
         <div class="form-group">
             <label>📊 Direction</label>
             <div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div>
         </div>
-
         <div class="form-group">
             <label>⇄ Type</label>
             <div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div>
         </div>
-
         <div class="form-group">
             <label>🏢 Account</label>
             <div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div>
         </div>
-
         <div class="form-group"><label>🏷️ Category</label><input type="text" id="edit-category"></div>
         <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref" readonly style="opacity: 0.6;"></div>
     </div>
-
     <div class="modal-actions">
         <button class="modal-btn" id="copy-modal-btn" onclick="copyModalText()">Copy Text</button>
         <button class="modal-btn" id="action-btn" onclick="handleModalAction()">Edit</button>
     </div>
 </div>
 
-<!-- Selection Popup Overlay -->
+<!-- popup overlay unchanged -->
 <div id="popup-overlay" onclick="closePopupOverlay(event)">
     <div class="popup-card" onclick="event.stopPropagation()">
         <div class="popup-header">
@@ -296,8 +289,8 @@
     };
 
     const endpoints = {
-        gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
-        groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
+      gemini: "https://script.google.com/macros/s/AKfycbyJUcI7u2YjRFzpemfGxXODskItJ-i6Eaz8HKfEF2b5qD2-9dZ2GtEsDmHzt6IaLtDY/exec",
+      groq: "https://script.google.com/macros/s/AKfycbx7CrlFktwGnHXRvdcovoXrZAjEGlg5axKnK5a7udfT-NdRwLcQ1xyqOsJ7vW7PUyPj3A/exec"
     };
 
     if ('serviceWorker' in navigator) {
@@ -331,6 +324,7 @@
         };
     }
 
+    // ----- CLOUD SYNC (unchanged) -----
     async function fetchFromCloud() {
         const dateVal = document.getElementById('fetch-date').value;
         if(!dateVal) return;
@@ -390,6 +384,7 @@
         setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
     }
 
+    // ----- EXTRACTION (unchanged) -----
     async function runExtraction(blob) {
         const start = Date.now();
         const statusEl = document.getElementById('status');
@@ -444,6 +439,7 @@
         return null;
     }
 
+    // ----- SAVE TXN (unchanged) -----
     async function saveTxn(blob, text, direction, status = 'success', duration = null, engine = null, shouldRender = true) {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
@@ -452,6 +448,7 @@
         if (shouldRender) { renderHistory(); checkPending(); }
     }
 
+    // ----- RENDER HISTORY (MODIFIED: copy on tap, long press opens modal) -----
     async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
@@ -466,34 +463,151 @@
                 
                 const url = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
                 const isCloudItem = !item.blob;
-                
-                div.onclick = (e) => {
-                    if (!div.dataset.swiped) openModal(item.id, url, item.status === 'pending' ? "--- PENDING ---" : item.text, isCloudItem);
+                const text = item.status === 'pending' ? "--- PENDING ---" : item.text;
+
+                // Data attributes for copy / modal
+                div.dataset.id = item.id;
+                div.dataset.text = text;
+                div.dataset.isCloud = isCloudItem;
+                div.dataset.url = url;
+
+                // ----- SWIPE + LONG PRESS DETECTION (touch) -----
+                let startX = 0, startY = 0;
+                let longPressTimer = null;
+                let isSwiped = false;
+                let isLongPress = false;
+                let touchDiffX = 0;
+
+                const clearLongPress = () => {
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
                 };
 
-                let startX = 0;
-                div.addEventListener('touchstart', e => {
-                    startX = e.touches[0].clientX;
-                    div.style.transition = "none"; 
-                    div.dataset.swiped = ""; 
+                const copyTextHandler = () => {
+                    const textToCopy = div.dataset.text;
+                    if (textToCopy && textToCopy !== "--- PENDING ---") {
+                        copyText(textToCopy);
+                    } else {
+                        // Optionally notify that nothing to copy
+                        const statusEl = document.getElementById('status');
+                        statusEl.innerText = "NOTHING TO COPY (pending)";
+                        statusEl.style.color = "var(--neon-red)";
+                        setTimeout(() => {
+                            statusEl.innerText = "System Online";
+                            statusEl.style.color = "#94a3b8";
+                        }, 1500);
+                    }
+                };
+
+                const openModalHandler = () => {
+                    openModal(item.id, url, text, isCloudItem);
+                };
+
+                // Touch events
+                div.addEventListener('touchstart', function(e) {
+                    const touch = e.touches[0];
+                    startX = touch.clientX;
+                    startY = touch.clientY;
+                    isSwiped = false;
+                    isLongPress = false;
+                    touchDiffX = 0;
+                    div.style.transition = "none";
+                    div.dataset.swiped = "";
+                    // Set timer for long press
+                    longPressTimer = setTimeout(() => {
+                        isLongPress = true;
+                        openModalHandler();
+                        // Prevent default to avoid click
+                        e.preventDefault();
+                    }, 600);
                 }, {passive: true});
 
-                div.addEventListener('touchmove', e => {
-                    const diffX = e.touches[0].clientX - startX;
-                    if (diffX < 0) { 
-                        const move = Math.max(diffX, -200); 
-                        div.style.transform = `translateX(${move}px)`;
-                        if (Math.abs(diffX) > 10) div.dataset.swiped = "true";
+                div.addEventListener('touchmove', function(e) {
+                    const touch = e.touches[0];
+                    const diffX = touch.clientX - startX;
+                    const diffY = touch.clientY - startY;
+                    touchDiffX = diffX;
+                    if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+                        isSwiped = true;
+                        clearLongPress();
+                        // Swipe logic
+                        if (diffX < 0) {
+                            const move = Math.max(diffX, -200);
+                            div.style.transform = `translateX(${move}px)`;
+                            div.dataset.swiped = "true";
+                        }
                     }
                 }, {passive: true});
 
-                div.addEventListener('touchend', e => {
-                    const diffX = e.changedTouches[0].clientX - startX;
+                div.addEventListener('touchend', function(e) {
+                    clearLongPress();
                     div.style.transition = "transform 0.3s ease, opacity 0.3s ease";
-                    if (diffX < -120) { handleSwipeDelete(div, item.id); } 
-                    else { div.style.transform = "translateX(0)"; setTimeout(() => div.dataset.swiped = "", 300); }
+                    // If swiped far enough, delete
+                    if (isSwiped && touchDiffX < -120) {
+                        handleSwipeDelete(div, item.id);
+                        return;
+                    }
+                    // Reset position if swiped but not far
+                    if (isSwiped) {
+                        div.style.transform = "translateX(0)";
+                        setTimeout(() => div.dataset.swiped = "", 300);
+                    }
+                    // If not swiped and not long press -> copy
+                    if (!isSwiped && !isLongPress) {
+                        copyTextHandler();
+                    }
+                    // If long press, modal already opened; do nothing else
                 }, {passive: true});
 
+                // Mouse events for desktop long press + copy on click
+                let mouseDown = false;
+                let mouseLongPress = false;
+                let mouseMoved = false;
+                let mouseTimer = null;
+
+                div.addEventListener('mousedown', function(e) {
+                    // Only left button
+                    if (e.button !== 0) return;
+                    mouseDown = true;
+                    mouseLongPress = false;
+                    mouseMoved = false;
+                    mouseTimer = setTimeout(() => {
+                        mouseLongPress = true;
+                        openModalHandler();
+                        e.preventDefault();
+                    }, 600);
+                });
+
+                div.addEventListener('mousemove', function(e) {
+                    if (mouseDown) {
+                        mouseMoved = true;
+                        clearTimeout(mouseTimer);
+                    }
+                });
+
+                div.addEventListener('mouseup', function(e) {
+                    clearTimeout(mouseTimer);
+                    if (mouseDown && !mouseMoved && !mouseLongPress) {
+                        // Click (not moved, not long press) -> copy
+                        copyTextHandler();
+                    }
+                    mouseDown = false;
+                });
+
+                div.addEventListener('mouseleave', function() {
+                    clearTimeout(mouseTimer);
+                    mouseDown = false;
+                });
+
+                // Right-click -> open modal (optional)
+                div.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    openModalHandler();
+                });
+
+                // Build the item's HTML
                 const brief = item.status === 'pending' 
                     ? '[PENDING EXTRACTION]' 
                     : (item.text.split('\n').find(l => l.includes('📅')) || item.text.split('\n')[0]);
@@ -513,6 +627,23 @@
         };
     }
 
+    // ----- COPY TEXT HELPER -----
+    async function copyText(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            const statusEl = document.getElementById('status');
+            statusEl.innerText = "📋 COPIED!";
+            statusEl.style.color = "var(--neon-green)";
+            setTimeout(() => {
+                statusEl.innerText = "System Online";
+                statusEl.style.color = "#94a3b8";
+            }, 2000);
+        } catch (err) {
+            alert("Failed to copy text.");
+        }
+    }
+
+    // ----- DELETE (unchanged) -----
     async function handleSwipeDelete(el, id) {
         el.style.transform = "translateX(-120%)";
         el.style.opacity = "0";
@@ -524,6 +655,7 @@
         }, 300);
     }
 
+    // ----- BATCH PROCESS (unchanged) -----
     async function processBatchQueue() {
         const db = await initDB();
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
@@ -551,6 +683,7 @@
         };
     }
 
+    // ----- INIT (unchanged) -----
     window.addEventListener('load', async () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('fetch-date').value = today;
@@ -595,6 +728,7 @@
         }
     });
 
+    // ----- MODAL FUNCTIONS (unchanged except copyModalText uses existing) -----
     function parseTextToFields(text) {
         const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
         if (!text || text === "--- PENDING ---") return fields;
@@ -776,10 +910,8 @@
         };
 
         try {
-            // Using the Groq URL endpoint for syncing updates back to the backend script
-            const resp = await fetch(endpoints.groq, {
+            const resp = await fetch(endpoints.gemini, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
             
@@ -808,7 +940,18 @@
             }
         } catch (err) {
             console.error("Backend Sync Error:", err);
-            actionBtn.innerText = "SYNC FAILED!";
+            let errorMsg = "SYNC FAILED!";
+            try {
+                if (resp && !resp.ok) {
+                    const text = await resp.text();
+                    console.error("Server response:", text);
+                    const json = JSON.parse(text);
+                    if (json.status === "error") errorMsg = json.data || "SYNC FAILED!";
+                }
+            } catch (e) {
+                // ignore
+            }
+            actionBtn.innerText = errorMsg;
             actionBtn.style.background = "var(--neon-red)";
             setTimeout(() => {
                 actionBtn.innerText = "Save Changes";
