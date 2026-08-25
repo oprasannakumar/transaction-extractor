@@ -314,23 +314,11 @@
             <p id="profile-email"></p>
             
             <div id="auth-action-container">
-                <div id="g_id_onload"
-                     data-client_id="455353267035-tvggeucvch4scohdpp1bucugkaeb5a2g.apps.googleusercontent.com"
-                     data-context="signin"
-                     data-ux_mode="popup"
-                     data-callback="onGoogleSignIn"
-                     data-auto_prompt="false">
-                </div>
-                <div class="g_id_signin"
-                     data-type="standard"
-                     data-shape="pill"
-                     data-theme="filled_blue"
-                     data-text="signin_with"
-                     data-size="large"
-                     data-logo_alignment="left">
-                </div>
+                <!-- Custom Single-Popup Login Button -->
+                <button id="custom-google-signin" class="modal-btn" onclick="startGoogleAuth()" style="background:var(--neon-blue); color:#000; padding: 12px 30px; border:none; border-radius: 12px;">Sign in with Google</button>
                 
-                <button id="logout-btn" class="modal-btn" style="background:var(--neon-red); color:white; display:none; padding: 12px 30px; border:none;" onclick="signOut()">Sign Out</button>
+                <!-- Logout Button -->
+                <button id="logout-btn" class="modal-btn" style="background:var(--neon-red); color:white; display:none; padding: 12px 30px; border:none; border-radius: 12px;" onclick="signOut()">Sign Out</button>
             </div>
         </div>
     </div>
@@ -439,12 +427,13 @@
 
 // ─── Google Sign-In & Session Management ────────────────────────
 
+// ─── Google Sign-In & Session Management ────────────────────────
+
 let tokenClient = null;
-const randomGuestLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26)); // Random A-Z
+const randomGuestLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
 function toggleProfile() {
     const overlay = document.getElementById('profile-overlay');
-    // Simply toggle flex vs none. The solid background covers the app automatically.
     overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
 }
 
@@ -456,7 +445,7 @@ function updateAuthUI(email, name, picture) {
     const nameEl = document.getElementById('profile-name');
     const emailEl = document.getElementById('profile-email');
     
-    const signinBtn = document.querySelector('.g_id_signin');
+    const signinBtn = document.getElementById('custom-google-signin');
     const logoutBtn = document.getElementById('logout-btn');
 
     if (email) {
@@ -492,15 +481,22 @@ function updateAuthUI(email, name, picture) {
     }
 }
 
+function startGoogleAuth() {
+    if (!tokenClient) initGoogleClient();
+    // This triggers the ONE and ONLY popup
+    tokenClient.requestAccessToken();
+}
+
 function initGoogleClient() {
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly',
+        // Added userinfo.email and userinfo.profile so we don't need a second authentication popup
+        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
         callback: async (tokenResponse) => {
             if (tokenResponse.error) {
                 console.error('Token error:', tokenResponse);
                 signOut(true);
-                showToast('Session expired. Please sign in.');
+                showToast('Sign in cancelled or failed.');
                 return;
             }
             
@@ -510,39 +506,33 @@ function initGoogleClient() {
             
             localStorage.setItem('userAccessToken', userAccessToken);
             localStorage.setItem('tokenExpiry', expiry.toString());
-            localStorage.setItem('userEmail', userEmail);
-            
-            showToast('Signed in successfully');
-            initializeSheet();
-            document.getElementById('profile-overlay').style.display = 'none'; // Close overlay on success
+
+            // Fetch the user's profile info using the access token
+            try {
+                const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${userAccessToken}` }
+                });
+                
+                const userInfo = await userInfoResp.json();
+                userEmail = userInfo.email;
+                const userName = userInfo.name;
+                const userPicture = userInfo.picture;
+                
+                localStorage.setItem('userEmail', userEmail);
+                localStorage.setItem('userName', userName || '');
+                localStorage.setItem('userPicture', userPicture || '');
+                
+                updateAuthUI(userEmail, userName, userPicture);
+                showToast('Signed in successfully');
+                initializeSheet();
+                document.getElementById('profile-overlay').style.display = 'none';
+                
+            } catch (err) {
+                console.error('Profile fetch error:', err);
+                showToast('Failed to fetch profile.');
+            }
         },
     });
-}
-
-function onGoogleSignIn(response) {
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    
-    userEmail = payload.email;
-    const userName = payload.name;
-    const userPicture = payload.picture;
-    
-    // Save rich profile data
-    localStorage.setItem('userName', userName);
-    localStorage.setItem('userPicture', userPicture);
-    
-    updateAuthUI(userEmail, userName, userPicture);
-
-    const savedToken = localStorage.getItem('userAccessToken');
-    const expiry = localStorage.getItem('tokenExpiry');
-    
-    if (savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
-        userAccessToken = savedToken;
-        initializeSheet();
-        document.getElementById('profile-overlay').style.display = 'none'; // Close overlay
-    } else {
-        if (!tokenClient) initGoogleClient();
-        tokenClient.requestAccessToken();
-    }
 }
 
 function restoreSession() {
@@ -558,7 +548,7 @@ function restoreSession() {
         updateAuthUI(userEmail, savedName, savedPic);
         initializeSheet();
     } else {
-        updateAuthUI(null); // Set to Guest
+        updateAuthUI(null);
         if (savedEmail || savedToken) {
             signOut(false); 
         }
@@ -601,6 +591,7 @@ function signOut(showToastMsg = true) {
 }
 
 restoreSession();
+
 // ─── IndexedDB Helpers ──────────────────────────────────────────
     const initDB = () => new Promise(res => {
         const req = indexedDB.open(DB_NAME, 1);
