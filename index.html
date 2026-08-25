@@ -112,18 +112,28 @@
         #modal {
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98);
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding: 40px 20px;
+            /* Animation properties */
+            opacity: 0; transform: translateY(20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
         }
+        
+        /* Triggers the animation */
+        #modal.show {
+            opacity: 1; transform: translateY(0);
+        }
+
         #modal-img {
-            max-width: 90%;
+            width: 100%; /* Fixes the collapsed vertical blue line */
+            max-width: 450px; 
             max-height: 50vh;
-            min-height: 300px;
+            min-height: 200px;
             border-radius: 16px;
             border: 2px solid var(--neon-blue);
             display: none;
             object-fit: contain;
             margin-bottom: 15px;
-        }
-        #modal-info-card {
+            background: rgba(0, 0, 0, 0.3); /* Subtle dark background while loading */
+        }        #modal-info-card {
             display: none; width: 90%; max-width: 450px; background: rgba(0, 210, 255, 0.05);
             border: 1px dashed var(--neon-blue); border-radius: 16px; padding: 20px;
             margin-bottom: 15px; text-align: center; font-family: monospace;
@@ -933,9 +943,9 @@ restoreSession();
         };
     }
 
-    // ─── Modal ──────────────────────────────────────────────────────
+  // ─── Modal ──────────────────────────────────────────────────────
 
-    function openModal(id, text, isCloudItem = false, blob = null) {
+  function openModal(id, text, isCloudItem = false, blob = null) {
         activeModalId = id;
         currentRawText = text || "No data available";
         isEditMode = false;
@@ -976,9 +986,36 @@ restoreSession();
         viewEl.style.display = "block";
         formEl.style.display = "none";
         actionsEl.classList.remove('show');
-        document.getElementById('modal').style.display = "flex";
+        
+        // Show modal and trigger smooth animation
+        const modal = document.getElementById('modal');
+        modal.style.display = "flex";
+        void modal.offsetWidth; // Force a browser reflow so the transition works
+        modal.classList.add('show');
     }
 
+    function closeModal() {
+        const modal = document.getElementById('modal');
+        // Start exit animation
+        modal.classList.remove('show');
+        
+        // Wait for 0.3s (matching the CSS transition) before hiding completely
+        setTimeout(() => {
+            const imgEl = document.getElementById('modal-img');
+            if (imgEl.dataset.objectUrl) {
+                URL.revokeObjectURL(imgEl.dataset.objectUrl);
+                delete imgEl.dataset.objectUrl;
+            }
+            modal.style.display = "none";
+            activeModalId = null;
+            isEditMode = false;
+            closePopup();
+            
+            document.getElementById('modal-view').style.display = "block";
+            document.getElementById('modal-form').style.display = "none";
+            document.getElementById('modal-actions').classList.remove('show');
+        }, 300); 
+    }
     // ─── Modal tap/long press ──────────────────────────────────────
 
     (function() {
@@ -1071,21 +1108,6 @@ restoreSession();
         viewEl.style.display = "none";
         formEl.style.display = "flex";
         actionsEl.classList.add('show');
-    }
-
-    function closeModal() {
-        const imgEl = document.getElementById('modal-img');
-        if (imgEl.dataset.objectUrl) {
-            URL.revokeObjectURL(imgEl.dataset.objectUrl);
-            delete imgEl.dataset.objectUrl;
-        }
-        document.getElementById('modal').style.display = "none";
-        activeModalId = null;
-        isEditMode = false;
-        closePopup();
-        document.getElementById('modal-view').style.display = "block";
-        document.getElementById('modal-form').style.display = "none";
-        document.getElementById('modal-actions').classList.remove('show');
     }
 
     // ─── Popup (select options) ─────────────────────────────────────
