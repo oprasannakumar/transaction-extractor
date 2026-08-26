@@ -415,9 +415,11 @@
 
 <script>
     // ─── CONFIGURATION ───────────────────────────────────────────────
-    // REPLACE THESE WITH YOUR ACTUAL VALUES
     const CLOUDFLARE_WORKER_URL = "https://txn-extractor.oprasannak.workers.dev";
     const GOOGLE_CLIENT_ID = "455353267035-tvggeucvch4scohdpp1bucugkaeb5a2g.apps.googleusercontent.com";
+    
+    // Set this to your exact GitHub Pages URL
+    const REDIRECT_URI = "https://oprasannakumar.github.io"; 
     // ──────────────────────────────────────────────────────────────────
 
     // ─── State ──────────────────────────────────────────────────────
@@ -1313,11 +1315,55 @@ restoreSession();
     window.addEventListener('load', async () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('fetch-date').value = today;
-
         updateModeUI();
-        restoreSession();
+
+        // 1. --- NEW: Intercept Google Redirect Token ---
+        const hashStr = window.location.hash;
+        if (hashStr && hashStr.includes('access_token=')) {
+            const hashParams = new URLSearchParams(hashStr.substring(1));
+            const token = hashParams.get('access_token');
+            const expiresIn = hashParams.get('expires_in');
+            
+            if (token) {
+                // Clear the URL immediately to hide the token from the address bar
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+                
+                showToast("Connecting account...");
+                userAccessToken = token;
+                const expiry = Date.now() + (parseInt(expiresIn, 10) * 1000);
+                
+                localStorage.setItem('userAccessToken', userAccessToken);
+                localStorage.setItem('tokenExpiry', expiry.toString());
+
+                // Fetch Profile Information
+                try {
+                    const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: `Bearer ${userAccessToken}` }
+                    });
+                    
+                    const userInfo = await userInfoResp.json();
+                    userEmail = userInfo.email;
+                    
+                    localStorage.setItem('userEmail', userEmail);
+                    localStorage.setItem('userName', userInfo.name || '');
+                    localStorage.setItem('userPicture', userInfo.picture || '');
+                    
+                    updateAuthUI(userEmail, userInfo.name, userInfo.picture);
+                    showToast('Signed in successfully');
+                    initializeSheet();
+                    document.getElementById('profile-overlay').style.display = 'none';
+                } catch (err) {
+                    console.error('Profile fetch error:', err);
+                    showToast('Failed to fetch profile.');
+                }
+            }
+        } else {
+            // Standard session restore if no new token is in the URL
+            restoreSession();
+        }
+
+        // 2. --- Existing Database & Shared Intent Logic ---
         const db = await initDB();
-        // Auto-clean old entries (keep 1 day)
         const cleanTx = db.transaction(STORE_NAME, "readwrite");
         const cleanStore = cleanTx.objectStore(STORE_NAME);
         const cleanReq = cleanStore.getAll();
@@ -1355,6 +1401,7 @@ restoreSession();
             renderHistory();
         }
     });
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js')
