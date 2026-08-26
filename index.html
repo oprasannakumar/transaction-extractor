@@ -505,10 +505,10 @@ function startGoogleAuth() {
     const params = {
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
-        response_type: 'token',
+        response_type: 'code', // Changed from 'token' to 'code'
         scope: scopes,
-        include_granted_scopes: 'true',
-        prompt: 'select_account' // Change from 'consent' to 'select_account' to avoid unnecessary full consent screens every time
+        access_type: 'offline', // Crucial: Requests a refresh token from Google
+        prompt: 'consent'       // Forces Google to issue the offline refresh token on first login
     };
     
     const queryString = Object.keys(params)
@@ -569,23 +569,17 @@ function initGoogleClient() {
 
 function restoreSession() {
     const savedToken = localStorage.getItem('userAccessToken');
-    const expiry = localStorage.getItem('tokenExpiry');
     const savedEmail = localStorage.getItem('userEmail');
     const savedName = localStorage.getItem('userName');
     const savedPic = localStorage.getItem('userPicture');
 
-    // Add a small buffer (e.g., 5 minutes) to expiry check
-    const bufferTime = 5 * 60 * 1000;
-
-    if (savedEmail && savedToken && expiry && Date.now() < (parseInt(expiry, 10) - bufferTime)) {
+    // Only verify if credentials exist; no time expiration check needed anymore
+    if (savedEmail && savedToken) {
         userEmail = savedEmail;
         userAccessToken = savedToken;
         updateAuthUI(userEmail, savedName, savedPic);
         initializeSheet();
     } else {
-        // If expired, clear only token data, but keep offline cache intact
-        localStorage.removeItem('userAccessToken');
-        localStorage.removeItem('tokenExpiry');
         updateAuthUI(null);
     }
 }
@@ -622,6 +616,7 @@ function signOut(showToastMsg = true) {
     userEmail = null;
     
     localStorage.removeItem('userAccessToken');
+    localStorage.removeItem('userRefreshToken');
     localStorage.removeItem('tokenExpiry');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('userName');
@@ -1402,9 +1397,139 @@ restoreSession();
             const oneDay = 24 * 60 * 60 * 1000;
             cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
         };
+const urlParams = new URLSearchParams(window.location.search);
+const authCode = urlParams.get('code');
 
+if (authCode) {
+    // Clean URL query parameters immediately
+    window.history.replaceState({}, document.title, window.location.pathname);
+    showToast("Authenticating with Cloudflare...");
+
+    try {
+        const resp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'exchange',
+                code: authCode,
+                redirectUri: REDIRECT_URI
+            })
+        });
+        const result = await resp.json();
+        
+        if (result.status === 'success' && result.data.access_token) {
+            userAccessToken = result.data.access_token;
+            
+            // Save token and profile details permanently until logout
+            localStorage.setItem('userAccessToken', userAccessToken);
+            if (result.data.refresh_token) {
+                localStorage.setItem('userRefreshToken', result.data.refresh_token);
+            }
+            
+            // Fetch User Profile
+            const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: `Bearer ${userAccessToken}` }
+            });
+            const userInfo = await userInfoResp.json();
+            userEmail = userInfo.email;
+            
+            localStorage.setItem('userEmail', userEmail);
+            localStorage.setItem('userName', userInfo.name || '');
+            localStorage.setItem('userPicture', userInfo.picture || '');
+            
+            updateAuthUI(userEmail, userInfo.name, userInfo.picture);
+            showToast('Signed in persistently!');
+            initializeSheet();
+            document.getElementById('profile-overlay').style.display = 'none';
+        } else {
+            throw new Error("Token exchange failed");
+        }
+    } catch (err) {
+        console.error('Auth Exchange Error:', err);
+        showToast('Authentication failed.');
+    }
+} else {
+    restoreSession();
+}
+
+    });
+    // ─── Initialisation ────────────────────────────────────────────
+
+    window.addEventListener('load', async () => {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('fetch-date').value = today;
+        updateModeUI();
+
+        // 1. --- Intercept OAuth Authorization Code from Google Redirect ---
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.has('shared')) {
+        const authCode = urlParams.get('code');
+
+        if (authCode) {
+            // Clean URL query parameters immediately
+            window.history.replaceState({}, document.title, window.location.pathname);
+            showToast("Authenticating with Cloudflare...");
+
+            try {
+                const resp = await fetch(CLOUDFLARE_WORKER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'exchange',
+                        code: authCode,
+                        redirectUri: REDIRECT_URI
+                    })
+                });
+                const result = await resp.json();
+                
+                if (result.status === 'success' && result.data.access_token) {
+                    userAccessToken = result.data.access_token;
+                    
+                    // Save access token permanently
+                    localStorage.setItem('userAccessToken', userAccessToken);
+                    if (result.data.refresh_token) {
+                        localStorage.setItem('userRefreshToken', result.data.refresh_token);
+                    }
+                    
+                    // Fetch User Profile details using the new token
+                    const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: `Bearer ${userAccessToken}` }
+                    });
+                    const userInfo = await userInfoResp.json();
+                    userEmail = userInfo.email;
+                    
+                    localStorage.setItem('userEmail', userEmail);
+                    localStorage.setItem('userName', userInfo.name || '');
+                    localStorage.setItem('userPicture', userInfo.picture || '');
+                    
+                    updateAuthUI(userEmail, userInfo.name, userInfo.picture);
+                    showToast('Signed in persistently!');
+                    initializeSheet();
+                    document.getElementById('profile-overlay').style.display = 'none';
+                } else {
+                    throw new Error(result.data || "Token exchange failed");
+                }
+            } catch (err) {
+                console.error('Auth Exchange Error:', err);
+                showToast('Authentication failed.');
+            }
+        } else {
+            // Standard session restore if no new code is in the URL
+            restoreSession();
+        }
+
+        // 2. --- Database & Shared Intent Logic ---
+        const db = await initDB();
+        const cleanTx = db.transaction(STORE_NAME, "readwrite");
+        const cleanStore = cleanTx.objectStore(STORE_NAME);
+        const cleanReq = cleanStore.getAll();
+        cleanReq.onsuccess = () => {
+            const now = Date.now();
+            const oneDay = 24 * 60 * 60 * 1000;
+            cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
+        };
+
+        const hashParamsCheck = new URLSearchParams(window.location.search); // handling shared intents if passed via URL search
+        if (hashParamsCheck.has('shared')) {
             const cache = await caches.open('shared-data');
             const keys = await cache.keys();
             const mode = localStorage.getItem('txnVaultMode') || 'standard';
@@ -1439,6 +1564,7 @@ restoreSession();
                 .catch(err => console.error('Service Worker Registration Failed!', err));
         });
     }
+
 </script>
 </body>
 </html>
