@@ -1181,8 +1181,10 @@
                     initializeSheet();
                     document.getElementById('profile-overlay').style.display = 'none';
                 } else {
-                    throw new Error(result.data || "Token exchange failed");
-                }
+    // Log or alert the exact string coming back from the worker
+    alert("Auth Error: " + (result.data || "Token exchange failed"));
+    throw new Error(result.data || "Token exchange failed");
+}
             } catch (err) {
                 console.error('Auth Exchange Error:', err);
                 showToast('Authentication failed.');
