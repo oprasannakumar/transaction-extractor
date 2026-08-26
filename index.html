@@ -494,9 +494,22 @@ function updateAuthUI(email, name, picture) {
 }
 
 function startGoogleAuth() {
-    if (!tokenClient) initGoogleClient();
-    // This triggers the ONE and ONLY popup
-    tokenClient.requestAccessToken();
+    // Manually construct the Google OAuth URL to force a full-page redirect
+    const oauth2Endpoint = 'https://accounts.google.com/o/oauth2/v2/auth';
+    const scopes = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+    
+    const params = {
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        response_type: 'token',
+        scope: scopes,
+        prompt: 'consent'
+    };
+    
+    const queryString = Object.keys(params).map(key => `${key}=${encodeURIComponent(params[key])}`).join('&');
+    
+    showToast("Redirecting to Google...");
+    window.location.href = `${oauth2Endpoint}?${queryString}`;
 }
 
 function initGoogleClient() {
