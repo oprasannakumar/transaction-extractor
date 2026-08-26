@@ -112,18 +112,16 @@
         #modal {
             display: none; position: fixed; inset: 0; background: rgba(2, 6, 23, 0.98);
             z-index: 1000; flex-direction: column; overflow-y: auto; align-items: center; padding: 40px 20px;
-            /* Animation properties */
             opacity: 0; transform: translateY(20px);
             transition: opacity 0.3s ease, transform 0.3s ease;
         }
         
-        /* Triggers the animation */
         #modal.show {
             opacity: 1; transform: translateY(0);
         }
 
         #modal-img {
-            width: 100%; /* Fixes the collapsed vertical blue line */
+            width: 100%;
             max-width: 450px; 
             max-height: 50vh;
             min-height: 200px;
@@ -132,8 +130,10 @@
             display: none;
             object-fit: contain;
             margin-bottom: 15px;
-            background: rgba(0, 0, 0, 0.3); /* Subtle dark background while loading */
-        }        #modal-info-card {
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        #modal-info-card {
             display: none; width: 90%; max-width: 450px; background: rgba(0, 210, 255, 0.05);
             border: 1px dashed var(--neon-blue); border-radius: 16px; padding: 20px;
             margin-bottom: 15px; text-align: center; font-family: monospace;
@@ -228,43 +228,12 @@
         .pending-message { color: #94a3b8; font-style: italic; }
         .meta-label { color: #64748b; font-weight: normal; }
 
-        /* ─── Login section ─── */
-        .login-section {
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-        #user-info {
-            display: none;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.85rem;
-        }
-        #user-info button {
-            background: var(--neon-red);
-            border: none;
-            padding: 4px 12px;
-            border-radius: 6px;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        /* ─── Card Header & Profile Trigger ─── */
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 25px;
             width: 100%;
-        }
-
-        h3 {
-            margin: 0; /* Removed bottom margin since the flex container handles spacing now */
-            font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
-            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
 
         .profile-trigger-inline {
@@ -282,7 +251,6 @@
         
         .avatar-fallback { font-size: 1rem; font-weight: bold; color: var(--neon-blue); }
 
-        /* ─── Profile Overlay ─── */
         .profile-overlay {
             display: none; position: fixed; inset: 0; 
             background: var(--bg-dark); 
@@ -310,7 +278,6 @@
 </head>
 <body>
 
-    <!-- Full Screen Profile Overlay (Hidden by default) -->
     <div id="profile-overlay" class="profile-overlay">
         <div class="profile-card">
             <span class="close-btn" onclick="toggleProfile()" style="position:absolute; top:10px; right:20px; font-size: 2rem; color: #94a3b8; cursor: pointer;">&times;</span>
@@ -324,23 +291,15 @@
             <p id="profile-email"></p>
             
             <div id="auth-action-container">
-                <!-- Custom Single-Popup Login Button -->
                 <button id="custom-google-signin" class="modal-btn" onclick="startGoogleAuth()" style="background:var(--neon-blue); color:#000; padding: 12px 30px; border:none; border-radius: 12px;">Sign in with Google</button>
-                
-                <!-- Logout Button -->
                 <button id="logout-btn" class="modal-btn" style="background:var(--neon-red); color:white; display:none; padding: 12px 30px; border:none; border-radius: 12px;" onclick="signOut()">Sign Out</button>
             </div>
         </div>
     </div>
     
-    <!-- MAIN DATA CORE -->
     <div class="card">
-        
-        <!-- New Header Layout -->
         <div class="card-header">
             <h3>Data Core</h3>
-            
-            <!-- Profile Trigger is now perfectly aligned with the title -->
             <div class="profile-trigger-inline" onclick="toggleProfile()">
                 <img id="trigger-img" src="" alt="Profile">
                 <div id="trigger-fallback" class="avatar-fallback"></div>
@@ -351,78 +310,71 @@
             <button class="mode-btn" id="btn-standard" onclick="setMode('standard')">Standard</button>
             <button class="mode-btn" id="btn-batch" onclick="setMode('batch')">Batch</button>
         </div>
-    <div class="cloud-fetch">
-        <input type="date" id="fetch-date">
-        <button onclick="fetchFromCloud()">Cloud Sync</button>
+        
+        <div class="cloud-fetch">
+            <input type="date" id="fetch-date">
+            <button onclick="fetchFromCloud()">Cloud Sync</button>
+        </div>
+
+        <button id="extract-all-btn" onclick="processBatchQueue()">Extract All Pending</button>
+
+        <div id="status">System Online</div>
+
+        <div id="p-cont" class="preview-container">
+            <div class="scan-line"></div>
+            <img id="preview" src="" alt="Syncing...">
+        </div>
+
+        <div class="history-header">
+            <h4 style="margin:0; font-size: 0.8rem; color: #64748b; letter-spacing: 1px;">CACHE</h4>
+            <div style="display: flex; gap: 8px;">
+                <button id="copy-all-btn" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="copyAllData()">COPY ALL</button>
+                <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
+            </div>
+        </div>
+        <div id="history-list"></div>
     </div>
 
-    <button id="extract-all-btn" onclick="processBatchQueue()">Extract All Pending</button>
+    <div id="toast" class="toast">Copied!</div>
 
-    <div id="status">System Online</div>
-
-    <div id="p-cont" class="preview-container">
-        <div class="scan-line"></div>
-        <img id="preview" src="" alt="Syncing...">
-    </div>
-
-    <div class="history-header">
-        <h4 style="margin:0; font-size: 0.8rem; color: #64748b; letter-spacing: 1px;">CACHE</h4>
-        <div style="display: flex; gap: 8px;">
-            <button id="copy-all-btn" style="background:none; border:1px solid var(--neon-blue); color:var(--neon-blue); padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="copyAllData()">COPY ALL</button>
-            <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
+    <div id="modal">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <img id="modal-img" src="">
+        <div id="modal-info-card">
+            <div class="info-title">☁️ Cloud Synchronized Record</div>
+            <div class="info-desc">Fetched directly from remote server logs. No local receipt screenshot stored.</div>
+        </div>
+        <div id="modal-view">Select a transaction to view</div>
+        <div id="modal-form">
+            <div class="form-group"><label>📅 Date</label><input type="text" id="edit-date"></div>
+            <div class="form-group"><label>📱 App</label><input type="text" id="edit-app"></div>
+            <div class="form-group"><label>👤 Name</label><input type="text" id="edit-name"></div>
+            <div class="form-group"><label>🆔 ID</label><input type="text" id="edit-txnId" readonly style="opacity: 0.6;"></div>
+            <div class="form-group"><label>📝 Narration</label><input type="text" id="edit-imageMessage"></div>
+            <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
+            <div class="form-group"><label>📊 Direction</label><div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div></div>
+            <div class="form-group"><label>⇄ Type</label><div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div></div>
+            <div class="form-group"><label>🏢 Account</label><div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div></div>
+            <div class="form-group"><label>🏷️ Category</label><input type="text" id="edit-category"></div>
+            <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref"></div>
+        </div>
+        <div class="modal-actions" id="modal-actions">
+            <button class="modal-btn" id="action-btn" onclick="saveEditedData()">Save</button>
         </div>
     </div>
-    <div id="history-list"></div>
-</div>
 
-<!-- Toast -->
-<div id="toast" class="toast">Copied!</div>
-
-<!-- Modal -->
-<div id="modal">
-    <span class="close-btn" onclick="closeModal()">&times;</span>
-    <img id="modal-img" src="">
-    <div id="modal-info-card">
-        <div class="info-title">☁️ Cloud Synchronized Record</div>
-        <div class="info-desc">Fetched directly from remote server logs. No local receipt screenshot stored.</div>
+    <div id="popup-overlay" onclick="closePopupOverlay(event)">
+        <div class="popup-card" onclick="event.stopPropagation()">
+            <div class="popup-header"><span id="popup-title">Select Option</span><span class="popup-close" onclick="closePopup()">&times;</span></div>
+            <div class="popup-body" id="popup-options-list"></div>
+        </div>
     </div>
-    <div id="modal-view">Select a transaction to view</div>
-    <div id="modal-form">
-        <div class="form-group"><label>📅 Date</label><input type="text" id="edit-date"></div>
-        <div class="form-group"><label>📱 App</label><input type="text" id="edit-app"></div>
-        <div class="form-group"><label>👤 Name</label><input type="text" id="edit-name"></div>
-        <div class="form-group"><label>🆔 ID</label><input type="text" id="edit-txnId" readonly style="opacity: 0.6;"></div>
-        <div class="form-group"><label>📝 Narration</label><input type="text" id="edit-imageMessage"></div>
-        <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
-        <div class="form-group"><label>📊 Direction</label><div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div></div>
-        <div class="form-group"><label>⇄ Type</label><div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div></div>
-        <div class="form-group"><label>🏢 Account</label><div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div></div>
-        <div class="form-group"><label>🏷️ Category</label><input type="text" id="edit-category"></div>
-        <div class="form-group"><label>🔗 Ref</label><input type="text" id="edit-ref"></div>
-    </div>
-    <div class="modal-actions" id="modal-actions">
-        <button class="modal-btn" id="action-btn" onclick="saveEditedData()">Save</button>
-    </div>
-</div>
-
-<!-- Popup Overlay -->
-<div id="popup-overlay" onclick="closePopupOverlay(event)">
-    <div class="popup-card" onclick="event.stopPropagation()">
-        <div class="popup-header"><span id="popup-title">Select Option</span><span class="popup-close" onclick="closePopup()">&times;</span></div>
-        <div class="popup-body" id="popup-options-list"></div>
-    </div>
-</div>
 
 <script>
-    // ─── CONFIGURATION ───────────────────────────────────────────────
     const CLOUDFLARE_WORKER_URL = "https://txn-extractor.oprasannak.workers.dev";
     const GOOGLE_CLIENT_ID = "455353267035-tvggeucvch4scohdpp1bucugkaeb5a2g.apps.googleusercontent.com";
-    
-    // Set this to your exact GitHub Pages URL
     const REDIRECT_URI = "https://oprasannakumar.github.io/transaction-extractor/"; 
-    // ──────────────────────────────────────────────────────────────────
 
-    // ─── State ──────────────────────────────────────────────────────
     let userAccessToken = null;
     let userEmail = null;
     let activeModalId = null;
@@ -437,206 +389,141 @@
     };
     const formDataState = { direction: 'IN', type: 'UPI', account: '' };
 
-// ─── Google Sign-In & Session Management ────────────────────────
+    let tokenClient = null;
+    const randomGuestLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
 
-// ─── Google Sign-In & Session Management ────────────────────────
+    function toggleProfile() {
+        const overlay = document.getElementById('profile-overlay');
+        overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+    }
 
-let tokenClient = null;
-const randomGuestLetter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-
-function toggleProfile() {
-    const overlay = document.getElementById('profile-overlay');
-    overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
-}
-
-function updateAuthUI(email, name, picture) {
-    const triggerImg = document.getElementById('trigger-img');
-    const triggerFallback = document.getElementById('trigger-fallback');
-    const profileImg = document.getElementById('profile-img');
-    const profileFallback = document.getElementById('profile-fallback');
-    const nameEl = document.getElementById('profile-name');
-    const emailEl = document.getElementById('profile-email');
-    
-    const signinBtn = document.getElementById('custom-google-signin');
-    const logoutBtn = document.getElementById('logout-btn');
-
-    if (email) {
-        // --- LOGGED IN STATE ---
-        nameEl.textContent = name || email.split('@')[0];
-        emailEl.textContent = email;
+    function updateAuthUI(email, name, picture) {
+        const triggerImg = document.getElementById('trigger-img');
+        const triggerFallback = document.getElementById('trigger-fallback');
+        const profileImg = document.getElementById('profile-img');
+        const profileFallback = document.getElementById('profile-fallback');
+        const nameEl = document.getElementById('profile-name');
+        const emailEl = document.getElementById('profile-email');
         
-        if (picture) {
-            triggerImg.src = picture; profileImg.src = picture;
-            triggerImg.style.display = 'block'; profileImg.style.display = 'block';
-            triggerFallback.style.display = 'none'; profileFallback.style.display = 'none';
+        const signinBtn = document.getElementById('custom-google-signin');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        if (email) {
+            nameEl.textContent = name || email.split('@')[0];
+            emailEl.textContent = email;
+            
+            if (picture) {
+                triggerImg.src = picture; profileImg.src = picture;
+                triggerImg.style.display = 'block'; profileImg.style.display = 'block';
+                triggerFallback.style.display = 'none'; profileFallback.style.display = 'none';
+            } else {
+                const initial = name ? name.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
+                triggerFallback.textContent = initial; profileFallback.textContent = initial;
+                triggerImg.style.display = 'none'; profileImg.style.display = 'none';
+                triggerFallback.style.display = 'block'; profileFallback.style.display = 'block';
+            }
+            
+            if (signinBtn) signinBtn.style.display = 'none';
+            logoutBtn.style.display = 'block';
         } else {
-            const initial = name ? name.charAt(0).toUpperCase() : email.charAt(0).toUpperCase();
-            triggerFallback.textContent = initial; profileFallback.textContent = initial;
+            nameEl.textContent = 'Guest';
+            emailEl.textContent = '';
+            
             triggerImg.style.display = 'none'; profileImg.style.display = 'none';
             triggerFallback.style.display = 'block'; profileFallback.style.display = 'block';
-        }
-        
-        if (signinBtn) signinBtn.style.display = 'none';
-        logoutBtn.style.display = 'block';
-    } else {
-        // --- GUEST STATE ---
-        nameEl.textContent = 'Guest';
-        emailEl.textContent = '';
-        
-        triggerImg.style.display = 'none'; profileImg.style.display = 'none';
-        triggerFallback.style.display = 'block'; profileFallback.style.display = 'block';
-        triggerFallback.textContent = randomGuestLetter;
-        profileFallback.textContent = randomGuestLetter;
-        
-        if (signinBtn) signinBtn.style.display = 'block';
-        logoutBtn.style.display = 'none';
-    }
-}
-
-function startGoogleAuth() {
-    const oauth2Endpoint = 'https://accounts.google.com/o/oauth2/v2/auth';
-    const scopes = [
-        'https://www.googleapis.com/auth/spreadsheets',
-        'https://www.googleapis.com/auth/drive.metadata.readonly',
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile'
-    ].join(' ');
-    
-    const params = {
-        client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
-        response_type: 'code', // Changed from 'token' to 'code'
-        scope: scopes,
-        access_type: 'offline', // Crucial: Requests a refresh token from Google
-        prompt: 'consent'       // Forces Google to issue the offline refresh token on first login
-    };
-    
-    const queryString = Object.keys(params)
-        .map(key => `${key}=${encodeURIComponent(params[key])}`)
-        .join('&');
-    
-    showToast("Redirecting to Google...");
-    window.location.href = `${oauth2Endpoint}?${queryString}`;
-}
-
-function initGoogleClient() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        // Added userinfo.email and userinfo.profile so we don't need a second authentication popup
-        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
-        callback: async (tokenResponse) => {
-            if (tokenResponse.error) {
-                console.error('Token error:', tokenResponse);
-                signOut(true);
-                showToast('Sign in cancelled or failed.');
-                return;
-            }
+            triggerFallback.textContent = randomGuestLetter;
+            profileFallback.textContent = randomGuestLetter;
             
-            userAccessToken = tokenResponse.access_token;
-            const expiresIn = tokenResponse.expires_in ? parseInt(tokenResponse.expires_in, 10) : 3500;
-            const expiry = Date.now() + (expiresIn * 1000);
-            
-            localStorage.setItem('userAccessToken', userAccessToken);
-            localStorage.setItem('tokenExpiry', expiry.toString());
-
-            // Fetch the user's profile info using the access token
-            try {
-                const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                    headers: { Authorization: `Bearer ${userAccessToken}` }
-                });
-                
-                const userInfo = await userInfoResp.json();
-                userEmail = userInfo.email;
-                const userName = userInfo.name;
-                const userPicture = userInfo.picture;
-                
-                localStorage.setItem('userEmail', userEmail);
-                localStorage.setItem('userName', userName || '');
-                localStorage.setItem('userPicture', userPicture || '');
-                
-                updateAuthUI(userEmail, userName, userPicture);
-                showToast('Signed in successfully');
-                initializeSheet();
-                document.getElementById('profile-overlay').style.display = 'none';
-                
-            } catch (err) {
-                console.error('Profile fetch error:', err);
-                showToast('Failed to fetch profile.');
-            }
-        },
-    });
-}
-
-function restoreSession() {
-    const savedToken = localStorage.getItem('userAccessToken');
-    const savedEmail = localStorage.getItem('userEmail');
-    const savedName = localStorage.getItem('userName');
-    const savedPic = localStorage.getItem('userPicture');
-
-    // Only verify if credentials exist; no time expiration check needed anymore
-    if (savedEmail && savedToken) {
-        userEmail = savedEmail;
-        userAccessToken = savedToken;
-        updateAuthUI(userEmail, savedName, savedPic);
-        initializeSheet();
-    } else {
-        updateAuthUI(null);
-    }
-}
-
-async function initializeSheet() {
-    if (!userAccessToken) return;
-    try {
-        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
-        });
-        
-        if (!initResp.ok) {
-            throw new Error(`Server returned status ${initResp.status}`);
+            if (signinBtn) signinBtn.style.display = 'block';
+            logoutBtn.style.display = 'none';
         }
+    }
+
+    function startGoogleAuth() {
+        const oauth2Endpoint = 'https://accounts.google.com/o/oauth2/v2/auth';
+        const scopes = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive.metadata.readonly',
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile'
+        ].join(' ');
         
-        const initData = await initResp.json();
-        if (initData.status === 'success') {
-            showToast('Sheet ready!');
-            fetchFromCloud(); 
+        const params = {
+            client_id: GOOGLE_CLIENT_ID,
+            redirect_uri: REDIRECT_URI,
+            response_type: 'code',
+            scope: scopes,
+            access_type: 'offline',
+            prompt: 'consent'
+        };
+        
+        const queryString = Object.keys(params)
+            .map(key => `${key}=${encodeURIComponent(params[key])}`)
+            .join('&');
+        
+        showToast("Redirecting to Google...");
+        window.location.href = `${oauth2Endpoint}?${queryString}`;
+    }
+
+    function restoreSession() {
+        const savedToken = localStorage.getItem('userAccessToken');
+        const savedEmail = localStorage.getItem('userEmail');
+        const savedName = localStorage.getItem('userName');
+        const savedPic = localStorage.getItem('userPicture');
+
+        if (savedEmail && savedToken) {
+            userEmail = savedEmail;
+            userAccessToken = savedToken;
+            updateAuthUI(userEmail, savedName, savedPic);
+            initializeSheet();
         } else {
-            console.warn('Sheet initialization warning:', initData);
+            updateAuthUI(null);
         }
-    } catch (err) {
-        console.error('Cloudflare connection error:', err);
-        // Do not sign out the user automatically on a network blip
-        showToast('Cloudflare sync delayed (offline mode)');
     }
-}
 
-function signOut(showToastMsg = true) {
-    userAccessToken = null;
-    userEmail = null;
-    
-    localStorage.removeItem('userAccessToken');
-    localStorage.removeItem('userRefreshToken');
-    localStorage.removeItem('tokenExpiry');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userPicture');
-    
-    updateAuthUI(null);
-    document.getElementById('history-list').innerHTML = '';
-    if (showToastMsg) showToast('Signed out');
-}
+    async function initializeSheet() {
+        if (!userAccessToken) return;
+        try {
+            const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+            });
+            
+            if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+            
+            const initData = await initResp.json();
+            if (initData.status === 'success') {
+                showToast('Sheet ready!');
+                fetchFromCloud(); 
+            }
+        } catch (err) {
+            console.error('Cloudflare connection error:', err);
+            showToast('Cloudflare sync delayed (offline mode)');
+        }
+    }
 
-restoreSession();
+    function signOut(showToastMsg = true) {
+        userAccessToken = null;
+        userEmail = null;
+        
+        localStorage.removeItem('userAccessToken');
+        localStorage.removeItem('userRefreshToken');
+        localStorage.removeItem('tokenExpiry');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userName');
+        localStorage.removeItem('userPicture');
+        
+        updateAuthUI(null);
+        document.getElementById('history-list').innerHTML = '';
+        if (showToastMsg) showToast('Signed out');
+    }
 
-// ─── IndexedDB Helpers ──────────────────────────────────────────
     const initDB = () => new Promise(res => {
         const req = indexedDB.open(DB_NAME, 1);
         req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
         req.onsuccess = e => res(e.target.result);
     });
-
-    // ─── UI / Mode ──────────────────────────────────────────────────
 
     function setMode(mode) {
         localStorage.setItem('txnVaultMode', mode);
@@ -659,8 +546,6 @@ restoreSession();
         };
     }
 
-    // ─── Toast ──────────────────────────────────────────────────────
-
     function showToast(msg) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
@@ -668,8 +553,6 @@ restoreSession();
         clearTimeout(toast._timeout);
         toast._timeout = setTimeout(() => toast.classList.remove('show'), 1500);
     }
-
-    // ─── Cloud Sync ────────────────────────────────────────────────
 
     async function fetchFromCloud() {
         if (!userAccessToken) {
@@ -742,8 +625,6 @@ restoreSession();
         setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
     }
 
-    // ─── Extraction ─────────────────────────────────────────────────
-
     async function runExtraction(blob) {
         if (!userAccessToken) {
             showToast('Please sign in first');
@@ -812,8 +693,6 @@ restoreSession();
         return null;
     }
 
-    // ─── Save Transaction ───────────────────────────────────────────
-
     async function saveTxn(blob, text, direction, status = 'success', duration = null, engine = null, shouldRender = true) {
         const db = await initDB();
         const tx = db.transaction(STORE_NAME, "readwrite");
@@ -821,8 +700,6 @@ restoreSession();
         await store.add({ blob, text, direction, status, duration, engine, timestamp: Date.now() });
         if (shouldRender) { renderHistory(); checkPending(); }
     }
-
-    // ─── Parse Fields ──────────────────────────────────────────────
 
     function parseFields(text) {
         const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
@@ -846,8 +723,6 @@ restoreSession();
         return fields;
     }
 
-    // ─── Render History ────────────────────────────────────────────
-
     async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
@@ -867,7 +742,6 @@ restoreSession();
                     openModal(item.id, item.text, isCloudItem, item.blob);
                 });
 
-                // Swipe to delete
                 let startX = 0;
                 div.addEventListener('touchstart', e => {
                     startX = e.touches[0].clientX;
@@ -924,8 +798,6 @@ restoreSession();
         };
     }
 
-    // ─── Swipe Delete ───────────────────────────────────────────────
-
     async function handleSwipeDelete(el, id) {
         el.style.transform = "translateX(-120%)";
         el.style.opacity = "0";
@@ -936,8 +808,6 @@ restoreSession();
             checkPending();
         }, 300);
     }
-
-    // ─── Batch Processing ──────────────────────────────────────────
 
     async function processBatchQueue() {
         if (!userAccessToken) {
@@ -970,9 +840,7 @@ restoreSession();
         };
     }
 
-  // ─── Modal ──────────────────────────────────────────────────────
-
-  function openModal(id, text, isCloudItem = false, blob = null) {
+    function openModal(id, text, isCloudItem = false, blob = null) {
         activeModalId = id;
         currentRawText = text || "No data available";
         isEditMode = false;
@@ -984,9 +852,7 @@ restoreSession();
         const infoCard = document.getElementById('modal-info-card');
 
         if (blob) {
-            if (imgEl.dataset.objectUrl) {
-                URL.revokeObjectURL(imgEl.dataset.objectUrl);
-            }
+            if (imgEl.dataset.objectUrl) URL.revokeObjectURL(imgEl.dataset.objectUrl);
             const url = URL.createObjectURL(blob);
             imgEl.src = url;
             imgEl.style.display = "block";
@@ -1014,19 +880,15 @@ restoreSession();
         formEl.style.display = "none";
         actionsEl.classList.remove('show');
         
-        // Show modal and trigger smooth animation
         const modal = document.getElementById('modal');
         modal.style.display = "flex";
-        void modal.offsetWidth; // Force a browser reflow so the transition works
+        void modal.offsetWidth;
         modal.classList.add('show');
     }
 
     function closeModal() {
         const modal = document.getElementById('modal');
-        // Start exit animation
         modal.classList.remove('show');
-        
-        // Wait for 0.3s (matching the CSS transition) before hiding completely
         setTimeout(() => {
             const imgEl = document.getElementById('modal-img');
             if (imgEl.dataset.objectUrl) {
@@ -1043,14 +905,13 @@ restoreSession();
             document.getElementById('modal-actions').classList.remove('show');
         }, 300); 
     }
-    // ─── Modal tap/long press ──────────────────────────────────────
 
     (function() {
         const viewEl = document.getElementById('modal-view');
         let pressTimer = null;
         let isLongPress = false;
 
-        const startPress = (e) => {
+        const startPress = () => {
             isLongPress = false;
             pressTimer = setTimeout(() => {
                 isLongPress = true;
@@ -1059,18 +920,11 @@ restoreSession();
         };
 
         const cancelPress = () => {
-            if (pressTimer) {
-                clearTimeout(pressTimer);
-                pressTimer = null;
-            }
+            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
         };
 
-        const handleTap = (e) => {
-            if (isLongPress) {
-                isLongPress = false;
-                return;
-            }
-            if (isEditMode) return;
+        const handleTap = () => {
+            if (isLongPress || isEditMode) return;
             const text = viewEl.innerText;
             if (!text || text.includes("Pending") || text === "No data available") {
                 showToast("Nothing to copy");
@@ -1079,29 +933,15 @@ restoreSession();
             navigator.clipboard.writeText(text).then(() => {
                 showToast("Copied!");
                 closeModal();
-            }).catch(() => {
-                showToast("Copy failed");
-            });
+            }).catch(() => showToast("Copy failed"));
         };
 
         viewEl.addEventListener('touchstart', startPress, { passive: true });
-        viewEl.addEventListener('touchend', (e) => {
-            cancelPress();
-            if (!isEditMode) handleTap(e);
-        }, { passive: true });
+        viewEl.addEventListener('touchend', () => { cancelPress(); handleTap(); }, { passive: true });
         viewEl.addEventListener('touchmove', cancelPress, { passive: true });
-
         viewEl.addEventListener('mousedown', startPress);
-        viewEl.addEventListener('mouseup', (e) => {
-            cancelPress();
-            if (!isEditMode) handleTap(e);
-        });
+        viewEl.addEventListener('mouseup', () => { cancelPress(); handleTap(); });
         viewEl.addEventListener('mouseleave', cancelPress);
-
-        viewEl.addEventListener('click', (e) => {
-            if (isLongPress) { isLongPress = false; return; }
-            if (!isEditMode) handleTap(e);
-        });
     })();
 
     function enterEditMode() {
@@ -1137,8 +977,6 @@ restoreSession();
         actionsEl.classList.add('show');
     }
 
-    // ─── Popup (select options) ─────────────────────────────────────
-
     function openPopup(type) {
         const overlay = document.getElementById('popup-overlay');
         const titleEl = document.getElementById('popup-title');
@@ -1148,16 +986,10 @@ restoreSession();
         let items = [];
         if (type === 'direction') {
             titleEl.innerText = "Select Direction";
-            items = [
-                { label: "🟢 IN", value: "IN" },
-                { label: "🔴 OUT", value: "OUT" }
-            ];
+            items = [{ label: "🟢 IN", value: "IN" }, { label: "🔴 OUT", value: "OUT" }];
         } else if (type === 'type') {
             titleEl.innerText = "Select Type";
-            items = [
-                { label: "Credit", value: "Credit" },
-                { label: "UPI", value: "UPI" }
-            ];
+            items = [{ label: "Credit", value: "Credit" }, { label: "UPI", value: "UPI" }];
         } else if (type === 'account') {
             titleEl.innerText = "Select Account";
             items = (accountOptionsMap[formDataState.type] || []).map(acc => ({ label: acc, value: acc }));
@@ -1181,9 +1013,7 @@ restoreSession();
     }
 
     function closePopupOverlay(e) {
-        if (e.target.id === 'popup-overlay') {
-            closePopup();
-        }
+        if (e.target.id === 'popup-overlay') closePopup();
     }
 
     function selectOptionValue(type, value, label) {
@@ -1196,8 +1026,6 @@ restoreSession();
         }
     }
 
-    // ─── Save Edited Data ──────────────────────────────────────────
-
     async function saveEditedData() {
         if (!activeModalId) return;
         if (!userAccessToken) {
@@ -1208,22 +1036,21 @@ restoreSession();
         const actionBtn = document.getElementById('action-btn');
         actionBtn.innerText = "SYNCING...";
 
-        const date = document.getElementById('edit-date').value;
-        const app = document.getElementById('edit-app').value;
-        const name = document.getElementById('edit-name').value;
-        const txnId = document.getElementById('edit-txnId').value;
-        const imageMessage = document.getElementById('edit-imageMessage').value;
-        const amount = document.getElementById('edit-amount').value;
-        const category = document.getElementById('edit-category').value;
-        const refId = document.getElementById('edit-ref').value;
-
-        const direction = formDataState.direction;
-        const type = formDataState.type;
-        const account = formDataState.account;
-
         const payload = {
             action: "update",
-            item: { date, app, name, txnId, imageMessage, amount, direction, type, account, category, refId },
+            item: {
+                date: document.getElementById('edit-date').value,
+                app: document.getElementById('edit-app').value,
+                name: document.getElementById('edit-name').value,
+                txnId: document.getElementById('edit-txnId').value,
+                imageMessage: document.getElementById('edit-imageMessage').value,
+                amount: document.getElementById('edit-amount').value,
+                direction: formDataState.direction,
+                type: formDataState.type,
+                account: formDataState.account,
+                category: document.getElementById('edit-category').value,
+                refId: document.getElementById('edit-ref').value
+            },
             accessToken: userAccessToken,
             email: userEmail,
         };
@@ -1235,31 +1062,17 @@ restoreSession();
                 body: JSON.stringify(payload)
             });
 
-            const rawText = await resp.text();
-            let result;
-            try {
-                result = JSON.parse(rawText);
-            } catch (e) {
-                alert("Server returned invalid JSON:\n" + rawText);
-                actionBtn.innerText = "INVALID RESPONSE";
-                actionBtn.style.background = "var(--neon-red)";
-                setTimeout(() => {
-                    actionBtn.innerText = "Save";
-                    actionBtn.style.background = "var(--neon-green)";
-                }, 2000);
-                return;
-            }
-
+            const result = await resp.json();
             if (result.status === "success") {
                 const db = await initDB();
                 const tx = db.transaction(STORE_NAME, "readwrite");
                 const store = tx.objectStore(STORE_NAME);
 
-                store.get(activeModalId).onsuccess = async (e) => {
+                store.get(activeModalId).onsuccess = (e) => {
                     const record = e.target.result;
                     if (record) {
                         record.text = result.data.formatted;
-                        record.direction = direction;
+                        record.direction = formDataState.direction;
                         store.put(record);
                         renderHistory();
 
@@ -1269,27 +1082,18 @@ restoreSession();
                     }
                 };
             } else {
-                alert("Sync failed: " + (result.data || result.status || "Unknown error"));
+                alert("Sync failed: " + (result.data || result.status));
                 actionBtn.innerText = "SYNC FAILED";
                 actionBtn.style.background = "var(--neon-red)";
-                setTimeout(() => {
-                    actionBtn.innerText = "Save";
-                    actionBtn.style.background = "var(--neon-green)";
-                }, 2000);
+                setTimeout(() => { actionBtn.innerText = "Save"; actionBtn.style.background = "var(--neon-green)"; }, 2000);
             }
         } catch (err) {
-            console.error("Fetch error:", err);
             alert("Network error:\n" + err.message);
             actionBtn.innerText = "NETWORK ERROR";
             actionBtn.style.background = "var(--neon-red)";
-            setTimeout(() => {
-                actionBtn.innerText = "Save";
-                actionBtn.style.background = "var(--neon-green)";
-            }, 2000);
+            setTimeout(() => { actionBtn.innerText = "Save"; actionBtn.style.background = "var(--neon-green)"; }, 2000);
         }
     }
-
-    // ─── Clear / Copy All ──────────────────────────────────────────
 
     async function clearHistory() {
         if(confirm("Purge All?")) {
@@ -1305,19 +1109,13 @@ restoreSession();
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
 
         req.onsuccess = async () => {
-            const items = req.result
-                .sort((a,b) => b.timestamp - a.timestamp)
-                .filter(i => i.status !== 'pending' && i.text);
-
+            const items = req.result.sort((a,b) => b.timestamp - a.timestamp).filter(i => i.status !== 'pending' && i.text);
             if (items.length === 0) {
                 alert("No extracted data available to copy.");
                 return;
             }
 
-            const allText = items.map((item, index) =>
-                `--- Transaction ${index + 1} ---\n${item.text}`
-            ).join('\n\n');
-
+            const allText = items.map((item, index) => `--- Transaction ${index + 1} ---\n${item.text}`).join('\n\n');
             try {
                 await navigator.clipboard.writeText(allText);
                 const btn = document.getElementById('copy-all-btn');
@@ -1335,137 +1133,16 @@ restoreSession();
         };
     }
 
-    // ─── Initialisation ────────────────────────────────────────────
-
+    // ─── Single Unified Initialization Execution ────────────────────
     window.addEventListener('load', async () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('fetch-date').value = today;
         updateModeUI();
 
-        // 1. --- NEW: Intercept Google Redirect Token ---
-        const hashStr = window.location.hash;
-        if (hashStr && hashStr.includes('access_token=')) {
-            const hashParams = new URLSearchParams(hashStr.substring(1));
-            const token = hashParams.get('access_token');
-            const expiresIn = hashParams.get('expires_in');
-            
-            if (token) {
-                // Clear the URL immediately to hide the token from the address bar
-                window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-                
-                showToast("Connecting account...");
-                userAccessToken = token;
-                const expiry = Date.now() + (parseInt(expiresIn, 10) * 1000);
-                
-                localStorage.setItem('userAccessToken', userAccessToken);
-                localStorage.setItem('tokenExpiry', expiry.toString());
-
-                // Fetch Profile Information
-                try {
-                    const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                        headers: { Authorization: `Bearer ${userAccessToken}` }
-                    });
-                    
-                    const userInfo = await userInfoResp.json();
-                    userEmail = userInfo.email;
-                    
-                    localStorage.setItem('userEmail', userEmail);
-                    localStorage.setItem('userName', userInfo.name || '');
-                    localStorage.setItem('userPicture', userInfo.picture || '');
-                    
-                    updateAuthUI(userEmail, userInfo.name, userInfo.picture);
-                    showToast('Signed in successfully');
-                    initializeSheet();
-                    document.getElementById('profile-overlay').style.display = 'none';
-                } catch (err) {
-                    console.error('Profile fetch error:', err);
-                    showToast('Failed to fetch profile.');
-                }
-            }
-        } else {
-            // Standard session restore if no new token is in the URL
-            restoreSession();
-        }
-
-        // 2. --- Existing Database & Shared Intent Logic ---
-        const db = await initDB();
-        const cleanTx = db.transaction(STORE_NAME, "readwrite");
-        const cleanStore = cleanTx.objectStore(STORE_NAME);
-        const cleanReq = cleanStore.getAll();
-        cleanReq.onsuccess = () => {
-            const now = Date.now();
-            const oneDay = 24 * 60 * 60 * 1000;
-            cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
-        };
-const urlParams = new URLSearchParams(window.location.search);
-const authCode = urlParams.get('code');
-
-if (authCode) {
-    // Clean URL query parameters immediately
-    window.history.replaceState({}, document.title, window.location.pathname);
-    showToast("Authenticating with Cloudflare...");
-
-    try {
-        const resp = await fetch(CLOUDFLARE_WORKER_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'exchange',
-                code: authCode,
-                redirectUri: REDIRECT_URI
-            })
-        });
-        const result = await resp.json();
-        
-        if (result.status === 'success' && result.data.access_token) {
-            userAccessToken = result.data.access_token;
-            
-            // Save token and profile details permanently until logout
-            localStorage.setItem('userAccessToken', userAccessToken);
-            if (result.data.refresh_token) {
-                localStorage.setItem('userRefreshToken', result.data.refresh_token);
-            }
-            
-            // Fetch User Profile
-            const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${userAccessToken}` }
-            });
-            const userInfo = await userInfoResp.json();
-            userEmail = userInfo.email;
-            
-            localStorage.setItem('userEmail', userEmail);
-            localStorage.setItem('userName', userInfo.name || '');
-            localStorage.setItem('userPicture', userInfo.picture || '');
-            
-            updateAuthUI(userEmail, userInfo.name, userInfo.picture);
-            showToast('Signed in persistently!');
-            initializeSheet();
-            document.getElementById('profile-overlay').style.display = 'none';
-        } else {
-            throw new Error("Token exchange failed");
-        }
-    } catch (err) {
-        console.error('Auth Exchange Error:', err);
-        showToast('Authentication failed.');
-    }
-} else {
-    restoreSession();
-}
-
-    });
-    // ─── Initialisation ────────────────────────────────────────────
-
-    window.addEventListener('load', async () => {
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('fetch-date').value = today;
-        updateModeUI();
-
-        // 1. --- Intercept OAuth Authorization Code from Google Redirect ---
         const urlParams = new URLSearchParams(window.location.search);
         const authCode = urlParams.get('code');
 
         if (authCode) {
-            // Clean URL query parameters immediately
             window.history.replaceState({}, document.title, window.location.pathname);
             showToast("Authenticating with Cloudflare...");
 
@@ -1484,13 +1161,11 @@ if (authCode) {
                 if (result.status === 'success' && result.data.access_token) {
                     userAccessToken = result.data.access_token;
                     
-                    // Save access token permanently
                     localStorage.setItem('userAccessToken', userAccessToken);
                     if (result.data.refresh_token) {
                         localStorage.setItem('userRefreshToken', result.data.refresh_token);
                     }
                     
-                    // Fetch User Profile details using the new token
                     const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                         headers: { Authorization: `Bearer ${userAccessToken}` }
                     });
@@ -1513,11 +1188,9 @@ if (authCode) {
                 showToast('Authentication failed.');
             }
         } else {
-            // Standard session restore if no new code is in the URL
             restoreSession();
         }
 
-        // 2. --- Database & Shared Intent Logic ---
         const db = await initDB();
         const cleanTx = db.transaction(STORE_NAME, "readwrite");
         const cleanStore = cleanTx.objectStore(STORE_NAME);
@@ -1528,8 +1201,7 @@ if (authCode) {
             cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
         };
 
-        const hashParamsCheck = new URLSearchParams(window.location.search); // handling shared intents if passed via URL search
-        if (hashParamsCheck.has('shared')) {
+        if (urlParams.has('shared')) {
             const cache = await caches.open('shared-data');
             const keys = await cache.keys();
             const mode = localStorage.getItem('txnVaultMode') || 'standard';
@@ -1564,7 +1236,6 @@ if (authCode) {
                 .catch(err => console.error('Service Worker Registration Failed!', err));
         });
     }
-
 </script>
 </body>
 </html>
