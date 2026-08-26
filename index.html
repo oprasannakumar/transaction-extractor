@@ -494,19 +494,26 @@ function updateAuthUI(email, name, picture) {
 }
 
 function startGoogleAuth() {
-    // Manually construct the Google OAuth URL to force a full-page redirect
     const oauth2Endpoint = 'https://accounts.google.com/o/oauth2/v2/auth';
-    const scopes = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+    const scopes = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.metadata.readonly',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile'
+    ].join(' ');
     
     const params = {
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
         response_type: 'token',
         scope: scopes,
-        prompt: 'consent'
+        include_granted_scopes: 'true',
+        prompt: 'select_account' // Change from 'consent' to 'select_account' to avoid unnecessary full consent screens every time
     };
     
-    const queryString = Object.keys(params).map(key => `${key}=${encodeURIComponent(params[key])}`).join('&');
+    const queryString = Object.keys(params)
+        .map(key => `${key}=${encodeURIComponent(params[key])}`)
+        .join('&');
     
     showToast("Redirecting to Google...");
     window.location.href = `${oauth2Endpoint}?${queryString}`;
@@ -567,16 +574,19 @@ function restoreSession() {
     const savedName = localStorage.getItem('userName');
     const savedPic = localStorage.getItem('userPicture');
 
-    if (savedEmail && savedToken && expiry && Date.now() < parseInt(expiry, 10)) {
+    // Add a small buffer (e.g., 5 minutes) to expiry check
+    const bufferTime = 5 * 60 * 1000;
+
+    if (savedEmail && savedToken && expiry && Date.now() < (parseInt(expiry, 10) - bufferTime)) {
         userEmail = savedEmail;
         userAccessToken = savedToken;
         updateAuthUI(userEmail, savedName, savedPic);
         initializeSheet();
     } else {
+        // If expired, clear only token data, but keep offline cache intact
+        localStorage.removeItem('userAccessToken');
+        localStorage.removeItem('tokenExpiry');
         updateAuthUI(null);
-        if (savedEmail || savedToken) {
-            signOut(false); 
-        }
     }
 }
 
@@ -588,15 +598,22 @@ async function initializeSheet() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
         });
+        
+        if (!initResp.ok) {
+            throw new Error(`Server returned status ${initResp.status}`);
+        }
+        
         const initData = await initResp.json();
         if (initData.status === 'success') {
             showToast('Sheet ready!');
             fetchFromCloud(); 
         } else {
-            showToast('Failed to initialize sheet');
+            console.warn('Sheet initialization warning:', initData);
         }
     } catch (err) {
-        showToast('Network error initializing sheet');
+        console.error('Cloudflare connection error:', err);
+        // Do not sign out the user automatically on a network blip
+        showToast('Cloudflare sync delayed (offline mode)');
     }
 }
 
