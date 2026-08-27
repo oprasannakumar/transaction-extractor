@@ -754,6 +754,29 @@ async function initializeSheet() {
         });
         return fields;
     }
+function restoreSession() {
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedName = localStorage.getItem('userName');
+    const savedPic = localStorage.getItem('userPicture');
+    const savedSheetId = localStorage.getItem('userSheetId'); 
+
+    // As long as we have the Sheet ID and Email, the user is permanently logged in.
+    // We no longer care if the Access Token is expired or missing.
+    if (savedEmail && savedSheetId) {
+        userEmail = savedEmail;
+        userSheetId = savedSheetId; 
+        updateAuthUI(userEmail, savedName, savedPic);
+    } 
+    // Fallback: If they just logged in but the sheet ID hasn't been fetched yet
+    else if (savedEmail && localStorage.getItem('userAccessToken')) {
+        userEmail = savedEmail;
+        userAccessToken = localStorage.getItem('userAccessToken');
+        updateAuthUI(userEmail, savedName, savedPic);
+        initializeSheet();
+    } else {
+        updateAuthUI(null);
+    }
+}
 
     async function renderHistory() {
         const db = await initDB();
