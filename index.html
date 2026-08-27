@@ -465,30 +465,36 @@
         window.location.href = `${oauth2Endpoint}?${queryString}`;
     }
 
-function restoreSession() {
-    const savedToken = localStorage.getItem('userAccessToken');
-    const savedEmail = localStorage.getItem('userEmail');
-    const savedName = localStorage.getItem('userName');
-    const savedPic = localStorage.getItem('userPicture');
-    const savedSheetId = localStorage.getItem('userSheetId'); 
-
-    // As long as we have the email and token, the user IS logged in.
-    if (savedEmail && savedToken) {
-        userEmail = savedEmail;
-        userAccessToken = savedToken; 
-        updateAuthUI(userEmail, savedName, savedPic);
-
-        if (savedSheetId) {
-            // We have the sheet ID, proceed directly to fetching data
-            userSheetId = savedSheetId;
-            fetchFromCloud();
+async function initializeSheet() {
+    if (!userAccessToken) {
+        showToast('No access token available for init.');
+        return;
+    }
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+        });
+        
+        if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+        
+        const initData = await initResp.json();
+        
+        // Debug check to see exactly what the worker sent back
+        if (initData.status === 'success' && initData.data && initData.data.sheetId) {
+            userSheetId = initData.data.sheetId;
+            localStorage.setItem('userSheetId', userSheetId);
+            
+            showToast('Sheet linked successfully!');
+            fetchFromCloud(); 
         } else {
-            // We are logged in, but the Sheet ID is missing from local storage.
-            // Fetch it silently in the background!
-            initializeSheet();
+            // Alert the exact error from the worker payload
+            alert("Init Error: " + (initData.data || initData.message || JSON.stringify(initData)));
         }
-    } else {
-        updateAuthUI(null);
+    } catch (err) {
+        console.error('Cloudflare connection error:', err);
+        alert('Init Exception: ' + err.message);
     }
 }
 
