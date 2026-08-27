@@ -465,25 +465,32 @@
         window.location.href = `${oauth2Endpoint}?${queryString}`;
     }
 
-    function restoreSession() {
-        const savedToken = localStorage.getItem('userAccessToken');
-        const savedEmail = localStorage.getItem('userEmail');
-        const savedName = localStorage.getItem('userName');
-        const savedPic = localStorage.getItem('userPicture');
-        const savedSheetId = localStorage.getItem('userSheetId'); // Restore sheet ID
+function restoreSession() {
+    const savedToken = localStorage.getItem('userAccessToken');
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedName = localStorage.getItem('userName');
+    const savedPic = localStorage.getItem('userPicture');
+    const savedSheetId = localStorage.getItem('userSheetId'); 
 
-        if (savedEmail && savedSheetId) {
-            userEmail = savedEmail;
-            userAccessToken = savedToken; // Token might be expired, but we don't care!
+    // As long as we have the email and token, the user IS logged in.
+    if (savedEmail && savedToken) {
+        userEmail = savedEmail;
+        userAccessToken = savedToken; 
+        updateAuthUI(userEmail, savedName, savedPic);
+
+        if (savedSheetId) {
+            // We have the sheet ID, proceed directly to fetching data
             userSheetId = savedSheetId;
-            updateAuthUI(userEmail, savedName, savedPic);
-            // We no longer strictly need to call initializeSheet() if we already have userSheetId locally, 
-            // but we can just fetch from cloud directly.
             fetchFromCloud();
         } else {
-            updateAuthUI(null);
+            // We are logged in, but the Sheet ID is missing from local storage.
+            // Fetch it silently in the background!
+            initializeSheet();
         }
+    } else {
+        updateAuthUI(null);
     }
+}
 
     async function initializeSheet() {
         if (!userAccessToken) return;
