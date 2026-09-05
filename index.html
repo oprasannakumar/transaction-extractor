@@ -351,6 +351,7 @@
             <div class="form-group"><label>🆔 ID</label><input type="text" id="edit-txnId" readonly style="opacity: 0.6;"></div>
             <div class="form-group"><label>📝 Narration</label><input type="text" id="edit-imageMessage"></div>
             <div class="form-group"><label>💰 Amount</label><input type="text" id="edit-amount"></div>
+          <div class="form-group"><label>💸 Charges</label><input type="number" step="0.01" id="edit-charges"></div>
             <div class="form-group"><label>📊 Direction</label><div class="select-popup-trigger" id="trigger-direction" onclick="openPopup('direction')">🟢 IN</div></div>
             <div class="form-group"><label>⇄ Type</label><div class="select-popup-trigger" id="trigger-type" onclick="openPopup('type')">Credit</div></div>
             <div class="form-group"><label>🏢 Account</label><div class="select-popup-trigger" id="trigger-account" onclick="openPopup('account')">Select Account</div></div>
@@ -699,7 +700,7 @@ async function initializeSheet() {
                         duration,
                         engine: model.toUpperCase(),
                         direction: d.direction,
-                        formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
+                        formatted: `📅 Date: ${d.date}\n📱 App: ${d.app}\n👤 Name: ${d.name}\n🆔 ID: ${d.txnId}\n📝 Msg: ${d.imageMessage}\n💰 Amount: ${d.amount}\n💸 Charges: ${d.charges || 0}\n📊 Direction: ${d.direction === "IN" ? "🟢 IN" : "🔴 OUT"}\n⇄ Type: ${d.type}\n🏢 Account: ${d.account}\n🏷️ Category: ${d.category}\n🔗 Ref: ${d.refId}`
                     };
                 } else {
                     let errorDetails = res.data || res.message || res.status;
@@ -743,6 +744,7 @@ async function initializeSheet() {
             else if (line.includes('🆔 ID:')) fields.txnId = line.replace('🆔 ID:', '').trim();
             else if (line.includes('📝 Msg:')) fields.imageMessage = line.replace('📝 Msg:', '').trim();
             else if (line.includes('💰 Amount:')) fields.amount = line.replace('💰 Amount:', '').trim();
+            else if (line.includes('💸 Charges:')) fields.charges = line.replace('💸 Charges:', '').trim();
             else if (line.includes('📊 Direction:')) fields.direction = line.includes('IN') ? 'IN' : 'OUT';
             else if (line.includes('⇄ Type:')) {
                 const val = line.replace('⇄ Type:', '').trim();
@@ -1018,6 +1020,7 @@ function restoreSession() {
         document.getElementById('edit-txnId').value = data.txnId;
         document.getElementById('edit-imageMessage').value = data.imageMessage;
         document.getElementById('edit-amount').value = data.amount;
+      document.getElementById('edit-charges').value = data.charges;
         document.getElementById('edit-category').value = data.category;
         document.getElementById('edit-ref').value = data.ref;
 
@@ -1101,6 +1104,7 @@ function restoreSession() {
                 txnId: document.getElementById('edit-txnId').value,
                 imageMessage: document.getElementById('edit-imageMessage').value,
                 amount: document.getElementById('edit-amount').value,
+              charges: parseFloat(document.getElementById('edit-charges').value) || 0,
                 direction: formDataState.direction,
                 type: formDataState.type,
                 account: formDataState.account,
