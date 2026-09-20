@@ -23,19 +23,29 @@
             font-family: 'Segoe UI', Roboto, sans-serif;
             display: flex; flex-direction: column; align-items: center;
             padding: 20px; background: var(--bg-dark); color: #e2e8f0;
-            margin: 0; min-height: 100vh; overflow-x: hidden;
+            margin: 0; 
+            height: 100vh; /* Locks the body height */
+            overflow: hidden; /* Prevents the whole page from scrolling */
         }
 
         .card {
             background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center;
+            display: flex; flex-direction: column; /* Turn card into a flex column */
+            height: calc(100vh - 40px); /* Fill available space */
+            overflow: hidden; /* Hide overflow outside the card */
         }
 
         h3 {
             margin: 0 0 20px 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
             background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        /* Prevent top controls from shrinking when the list grows */
+        .card-header, .mode-selector, .cloud-fetch, #extract-all-btn, #status, .preview-container, .history-header {
+            flex-shrink: 0;
         }
 
         .mode-selector {
@@ -88,26 +98,38 @@
         #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; }
 
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; width: 100%; max-width: 450px; }
-        #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
+        
+        #history-list { 
+            width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden;
+            flex: 1; /* Take up all remaining space */
+            overflow-y: auto; /* Enable vertical scrolling */
+            padding-bottom: 20px; /* Space at the bottom */
+        }
+        
+        /* Custom minimal scrollbar for the history list */
+        #history-list::-webkit-scrollbar { width: 6px; }
+        #history-list::-webkit-scrollbar-track { background: transparent; }
+        #history-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
+        #history-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
 
-         .txn-item {
+        .txn-item {
             background: rgba(255, 255, 255, 0.03);
-            margin-bottom: 0; /* Gap removed */
+            margin-bottom: 0; /* Removed gap */
             display: flex; align-items: center;
             padding: 12px; cursor: pointer; transition: transform 0.1s linear, opacity 0.3s ease;
             user-select: none; touch-action: pan-y; position: relative; will-change: transform;
         }
-          .txn-item:first-child { border-top-left-radius: 16px; border-top-right-radius: 16px; }
+        
+        /* Round only the outer corners so the stacked items look like one unified card */
+        .txn-item:first-child { border-top-left-radius: 16px; border-top-right-radius: 16px; }
         .txn-item:last-child { border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
+        .txn-item.pending { opacity: 0.7; }
 
-        .txn-item.pending { border-color: var(--neon-purple); opacity: 0.7; }
-       
         .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;}
         .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
         .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         
-        /* NEW: Amount styling */
         .txn-amount { font-size: 1.25rem; font-family: monospace; font-weight: bold; margin-left: 12px; white-space: nowrap; }
 
         .engine-tag { color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; }
@@ -336,6 +358,8 @@
                 <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
             </div>
         </div>
+        
+        <!-- Scrolling list container -->
         <div id="history-list"></div>
     </div>
 
@@ -724,6 +748,26 @@
         });
         return fields;
     }
+
+    // NEW: Helper function to determine app domain for Clearbit logo API
+    function getAppDomain(appName) {
+        if (!appName) return null;
+        const name = appName.toLowerCase().replace(/\s/g, '');
+        if (name.includes('phonepe')) return 'phonepe.com';
+        if (name.includes('gpay') || name.includes('google')) return 'pay.google.com';
+        if (name.includes('paytm')) return 'paytm.com';
+        if (name.includes('cred')) return 'cred.club';
+        if (name.includes('amazon')) return 'amazon.in';
+        if (name.includes('bhim')) return 'bhimupi.org.in';
+        if (name.includes('hdfc')) return 'hdfcbank.com';
+        if (name.includes('icici')) return 'icicibank.com';
+        if (name.includes('sbi') || name.includes('yono')) return 'onlinesbi.sbi';
+        if (name.includes('axis')) return 'axisbank.com';
+        if (name.includes('kotak')) return 'kotak.com';
+        if (name.includes('swiggy')) return 'swiggy.com';
+        if (name.includes('zomato')) return 'zomato.com';
+        return null;
+    }
     
     function restoreSession() {
         const savedEmail = localStorage.getItem('userEmail');
@@ -756,13 +800,41 @@
             list.innerHTML = "";
             req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
-                div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
-                const url = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
-                const isCloudItem = !item.blob;
+                div.className = `txn-item ${item.status === 'pending' ? 'pending' : ''}`;
+                
+                let nameDisplay = 'Unknown';
+                let dateDisplay = '';
+                let amountDisplay = '';
+                let appDisplay = ''; 
+
+                if (item.status === 'pending') {
+                    nameDisplay = '[Pending]';
+                } else if (item.text) {
+                    const fields = parseFields(item.text);
+                    nameDisplay = fields.name || 'Unknown';
+                    dateDisplay = fields.date || '';
+                    amountDisplay = fields.amount || '';
+                    appDisplay = fields.app || '';
+                }
+
+                // --- ICON LOGIC ---
+                const fallbackUrl = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
+                const fallbackStyle = item.blob ? "" : "padding: 12px; background: rgba(0,0,0,0.2);";
+                
+                let iconUrl = fallbackUrl;
+                let iconStyle = fallbackStyle;
+                const domain = getAppDomain(appDisplay);
+
+                // If an app domain is found, use clearbit API
+                if (domain) {
+                    iconUrl = `https://logo.clearbit.com/${domain}`;
+                    // Add white background and padding so dark/transparent logos look perfect
+                    iconStyle = "padding: 6px; background: #fff; object-fit: contain;"; 
+                }
 
                 div.addEventListener('click', (e) => {
                     if (div._swiping) return;
-                    openModal(item.id, item.text, isCloudItem, item.blob);
+                    openModal(item.id, item.text, !item.blob, item.blob);
                 });
 
                 let startX = 0;
@@ -789,18 +861,6 @@
                     setTimeout(() => div._swiping = false, 300);
                 }, {passive: true});
 
-                let nameDisplay = 'Unknown';
-                let dateDisplay = '';
-                let amountDisplay = '';
-                if (item.status === 'pending') {
-                    nameDisplay = '[Pending]';
-                } else if (item.text) {
-                    const fields = parseFields(item.text);
-                    nameDisplay = fields.name || 'Unknown';
-                    dateDisplay = fields.date || '';
-                    amountDisplay = fields.amount || '';
-                }
-
                 let subParts = [];
                 if (dateDisplay) subParts.push(`<span class="meta-label">Date:</span> ${dateDisplay}`);
                 const subText = subParts.length ? subParts.join('  •  ') : 'No details';
@@ -812,7 +872,7 @@
                 const amountHtml = amountDisplay ? `<div class="txn-amount" style="color: ${amountColor};">${amountDisplay}</div>` : "";
 
                 div.innerHTML = `
-                    <img src="${url}" class="txn-thumb" style="${isCloudItem ? 'padding: 12px;' : ''}">
+                    <img src="${iconUrl}" class="txn-thumb" style="${iconStyle}" onerror="this.onerror=null; this.src='${fallbackUrl}'; this.style.cssText='${fallbackStyle}';">
                     <div class="txn-brief">
                         <span class="txn-title">${nameDisplay}</span>
                         <div class="txn-time">${subText} ${timeTag} ${engineTag}</div>
