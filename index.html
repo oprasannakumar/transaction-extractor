@@ -90,17 +90,18 @@
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; width: 100%; max-width: 450px; }
         #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
 
-        .txn-item {
+         .txn-item {
             background: rgba(255, 255, 255, 0.03);
-            border: 2px solid transparent;
-            border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center;
+            margin-bottom: 0; /* Gap removed */
+            display: flex; align-items: center;
             padding: 12px; cursor: pointer; transition: transform 0.1s linear, opacity 0.3s ease;
             user-select: none; touch-action: pan-y; position: relative; will-change: transform;
         }
-        .txn-item.pending { border-color: var(--neon-purple); opacity: 0.7; }
-        .txn-item.in { border-color: var(--neon-green); }
-        .txn-item.out { border-color: var(--neon-red); }
+          .txn-item:first-child { border-top-left-radius: 16px; border-top-right-radius: 16px; }
+        .txn-item:last-child { border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
 
+        .txn-item.pending { border-color: var(--neon-purple); opacity: 0.7; }
+       
         .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;}
         .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
         .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
