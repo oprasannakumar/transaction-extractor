@@ -23,29 +23,19 @@
             font-family: 'Segoe UI', Roboto, sans-serif;
             display: flex; flex-direction: column; align-items: center;
             padding: 20px; background: var(--bg-dark); color: #e2e8f0;
-            margin: 0; 
-            height: 100vh; /* Locks the body height */
-            overflow: hidden; /* Prevents the whole page from scrolling */
+            margin: 0; min-height: 100vh; overflow-x: hidden;
         }
 
         .card {
             background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             padding: 25px; border-radius: 24px; border: 1px solid var(--glass-border);
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8); width: 100%; max-width: 450px; text-align: center;
-            display: flex; flex-direction: column; /* Turn card into a flex column */
-            height: calc(100vh - 40px); /* Fill available space */
-            overflow: hidden; /* Hide overflow outside the card */
         }
 
         h3 {
             margin: 0 0 20px 0; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-size: 1.2rem;
             background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-
-        /* Prevent top controls from shrinking when the list grows */
-        .card-header, .mode-selector, .cloud-fetch, #extract-all-btn, #status, .preview-container, .history-header {
-            flex-shrink: 0;
         }
 
         .mode-selector {
@@ -98,40 +88,23 @@
         #status { font-size: 0.8rem; color: #94a3b8; font-family: monospace; margin: 15px 0; }
 
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; width: 100%; max-width: 450px; }
-        
-        #history-list { 
-            width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden;
-            flex: 1; /* Take up all remaining space */
-            overflow-y: auto; /* Enable vertical scrolling */
-            padding-bottom: 20px; /* Space at the bottom */
-        }
-        
-        /* Custom minimal scrollbar for the history list */
-        #history-list::-webkit-scrollbar { width: 6px; }
-        #history-list::-webkit-scrollbar-track { background: transparent; }
-        #history-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
-        #history-list::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+        #history-list { width: 100%; max-width: 450px; margin-top: 15px; overflow-x: hidden; }
 
         .txn-item {
             background: rgba(255, 255, 255, 0.03);
-            margin-bottom: 0; /* Removed gap */
-            display: flex; align-items: center;
+            border: 2px solid transparent;
+            border-radius: 16px; margin-bottom: 12px; display: flex; align-items: center;
             padding: 12px; cursor: pointer; transition: transform 0.1s linear, opacity 0.3s ease;
             user-select: none; touch-action: pan-y; position: relative; will-change: transform;
         }
-        
-        /* Round only the outer corners so the stacked items look like one unified card */
-        .txn-item:first-child { border-top-left-radius: 16px; border-top-right-radius: 16px; }
-        .txn-item:last-child { border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
-        .txn-item.pending { opacity: 0.7; }
+        .txn-item.pending { border-color: var(--neon-purple); opacity: 0.7; }
+        .txn-item.in { border-color: var(--neon-green); }
+        .txn-item.out { border-color: var(--neon-red); }
 
         .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;}
         .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
         .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        
-        .txn-amount { font-size: 1.25rem; font-family: monospace; font-weight: bold; margin-left: 12px; white-space: nowrap; }
-
         .engine-tag { color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; }
         .meta-label { color: #64748b; font-weight: normal; }
 
@@ -358,8 +331,6 @@
                 <button style="background:none; border:1px solid #f87171; color:#f87171; padding:4px 8px; border-radius:6px; font-size:0.6rem; cursor:pointer;" onclick="clearHistory()">PURGE ALL</button>
             </div>
         </div>
-        
-        <!-- Scrolling list container -->
         <div id="history-list"></div>
     </div>
 
@@ -406,7 +377,7 @@
 
     let userAccessToken = null;
     let userEmail = null;
-    let userSheetId = null; 
+    let userSheetId = null; // --- NEW: Track the Sheet ID locally ---
 
     let activeModalId = null;
     let currentRawText = "";
@@ -495,41 +466,76 @@
         window.location.href = `${oauth2Endpoint}?${queryString}`;
     }
 
-    async function initializeSheet() {
-        if (!userAccessToken) {
-            showToast('No access token available for init.');
-            return;
-        }
-        try {
-            const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
-            });
-            
-            if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
-            
-            const initData = await initResp.json();
-            
-            if (initData.status === 'success' && initData.data && initData.data.sheetId) {
-                userSheetId = initData.data.sheetId;
-                localStorage.setItem('userSheetId', userSheetId);
-                
-                showToast('Sheet linked successfully!');
-                fetchFromCloud(); 
-            } else {
-                alert("Init Failed: " + (initData.data || JSON.stringify(initData)));
-            }
-        } catch (err) {
-            console.error('Cloudflare connection error:', err);
-            alert('Init Exception: ' + err.message);
-        }
+async function initializeSheet() {
+    if (!userAccessToken) {
+        showToast('No access token available for init.');
+        return;
     }
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+        });
+        
+        if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+        
+        const initData = await initResp.json();
+        
+        // Debug check to see exactly what the worker sent back
+        if (initData.status === 'success' && initData.data && initData.data.sheetId) {
+            userSheetId = initData.data.sheetId;
+            localStorage.setItem('userSheetId', userSheetId);
+            
+            showToast('Sheet linked successfully!');
+            fetchFromCloud(); 
+        } else {
+            // Alert the exact error from the worker payload
+            alert("Init Error: " + (initData.data || initData.message || JSON.stringify(initData)));
+        }
+    } catch (err) {
+        console.error('Cloudflare connection error:', err);
+        alert('Init Exception: ' + err.message);
+    }
+}
+
+   async function initializeSheet() {
+    if (!userAccessToken) {
+        showToast('No access token available for init.');
+        return;
+    }
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+        });
+        
+        if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+        
+        const initData = await initResp.json();
+        
+        // If successful, save the sheet ID
+        if (initData.status === 'success' && initData.data && initData.data.sheetId) {
+            userSheetId = initData.data.sheetId;
+            localStorage.setItem('userSheetId', userSheetId);
+            
+            showToast('Sheet linked successfully!');
+            fetchFromCloud(); 
+        } else {
+            // SHOW THE EXACT ERROR IF IT FAILS
+            alert("Init Failed: " + (initData.data || JSON.stringify(initData)));
+        }
+    } catch (err) {
+        console.error('Cloudflare connection error:', err);
+        alert('Init Exception: ' + err.message);
+    }
+}
 
     function signOut(showToastMsg = true) {
         userAccessToken = null;
         userEmail = null;
-        userSheetId = null;
+        userSheetId = null; // Clear local sheet ID state
         
         localStorage.removeItem('userAccessToken');
         localStorage.removeItem('userRefreshToken');
@@ -537,7 +543,7 @@
         localStorage.removeItem('userEmail');
         localStorage.removeItem('userName');
         localStorage.removeItem('userPicture');
-        localStorage.removeItem('userSheetId'); 
+        localStorage.removeItem('userSheetId'); // Remove from storage
         
         updateAuthUI(null);
         document.getElementById('history-list').innerHTML = '';
@@ -580,6 +586,7 @@
     }
 
     async function fetchFromCloud() {
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return;
@@ -599,7 +606,7 @@
                 body: JSON.stringify({
                     action: "fetch",
                     date: dateVal,
-                    sheetId: userSheetId,
+                    sheetId: userSheetId, // Send Sheet ID directly
                     email: userEmail,
                     existingRefIds: []
                 })
@@ -651,6 +658,7 @@
     }
 
     async function runExtraction(blob) {
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return null;
@@ -676,7 +684,7 @@
                         action: "extract",
                         image: base64,
                         model: model,
-                        sheetId: userSheetId,
+                        sheetId: userSheetId, // Send Sheet ID directly
                         email: userEmail
                     })
                 });
@@ -748,95 +756,47 @@
         });
         return fields;
     }
+function restoreSession() {
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedName = localStorage.getItem('userName');
+    const savedPic = localStorage.getItem('userPicture');
+    const savedSheetId = localStorage.getItem('userSheetId'); 
 
-    // NEW: Helper function to determine app domain for Clearbit logo API
-    function getAppDomain(appName) {
-        if (!appName) return null;
-        const name = appName.toLowerCase().replace(/\s/g, '');
-        if (name.includes('phonepe')) return 'phonepe.com';
-        if (name.includes('gpay') || name.includes('google')) return 'pay.google.com';
-        if (name.includes('paytm')) return 'paytm.com';
-        if (name.includes('cred')) return 'cred.club';
-        if (name.includes('amazon')) return 'amazon.in';
-        if (name.includes('bhim')) return 'bhimupi.org.in';
-        if (name.includes('hdfc')) return 'hdfcbank.com';
-        if (name.includes('icici')) return 'icicibank.com';
-        if (name.includes('sbi') || name.includes('yono')) return 'onlinesbi.sbi';
-        if (name.includes('axis')) return 'axisbank.com';
-        if (name.includes('kotak')) return 'kotak.com';
-        if (name.includes('swiggy')) return 'swiggy.com';
-        if (name.includes('zomato')) return 'zomato.com';
-        return null;
+    // As long as we have the Sheet ID and Email, the user is permanently logged in.
+    // We no longer care if the Access Token is expired or missing.
+    if (savedEmail && savedSheetId) {
+        userEmail = savedEmail;
+        userSheetId = savedSheetId; 
+        updateAuthUI(userEmail, savedName, savedPic);
+    } 
+    // Fallback: If they just logged in but the sheet ID hasn't been fetched yet
+    else if (savedEmail && localStorage.getItem('userAccessToken')) {
+        userEmail = savedEmail;
+        userAccessToken = localStorage.getItem('userAccessToken');
+        updateAuthUI(userEmail, savedName, savedPic);
+        initializeSheet();
+    } else {
+        updateAuthUI(null);
     }
-    
-    function restoreSession() {
-        const savedEmail = localStorage.getItem('userEmail');
-        const savedName = localStorage.getItem('userName');
-        const savedPic = localStorage.getItem('userPicture');
-        const savedSheetId = localStorage.getItem('userSheetId'); 
-
-        if (savedEmail && savedSheetId) {
-            userEmail = savedEmail;
-            userSheetId = savedSheetId; 
-            updateAuthUI(userEmail, savedName, savedPic);
-        } 
-        else if (savedEmail && localStorage.getItem('userAccessToken')) {
-            userEmail = savedEmail;
-            userAccessToken = localStorage.getItem('userAccessToken');
-            updateAuthUI(userEmail, savedName, savedPic);
-            initializeSheet();
-        } else {
-            updateAuthUI(null);
-        }
-    }
+}
 
     async function renderHistory() {
         const db = await initDB();
         const list = document.getElementById('history-list');
         const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
-        
-        // UPDATED: Base64 encoded SVG to prevent quote-interpolation errors in the onerror handler
-        const cloudSvg = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNCcgaGVpZ2h0PScyNCcgdmlld0JveD0nMCAwIDI0IDI0JyBmaWxsPSdub25lJyBzdHJva2U9JyM5NGEzYjgnIHN0cm9rZS13aWR0aD0nMicgc3Ryb2tlLWxpbmVjYXA9J3JvdW5kJyBzdHJva2UtbGluZWpvaW49J3JvdW5kJz48cGF0aCBkPSdNMTcuNSAxOUg5YTcgNyAwIDEgMSA2LjcxLTloMS43OWE0LjUgNC41IDAgMSAxIDAgOVonPjwvcGF0aD48L3N2Zz4=";
+        const cloudSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z'%3E%3C/path%3E%3C/svg%3E";
 
         req.onsuccess = () => {
             list.innerHTML = "";
             req.result.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
                 const div = document.createElement('div');
-                div.className = `txn-item ${item.status === 'pending' ? 'pending' : ''}`;
-                
-                let nameDisplay = 'Unknown';
-                let dateDisplay = '';
-                let amountDisplay = '';
-                let appDisplay = ''; 
-
-                if (item.status === 'pending') {
-                    nameDisplay = '[Pending]';
-                } else if (item.text) {
-                    const fields = parseFields(item.text);
-                    nameDisplay = fields.name || 'Unknown';
-                    dateDisplay = fields.date || '';
-                    amountDisplay = fields.amount || '';
-                    appDisplay = fields.app || '';
-                }
-
-                // --- ICON LOGIC ---
-                const fallbackUrl = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
-                const fallbackStyle = item.blob ? "" : "padding: 12px; background: rgba(0,0,0,0.2);";
-                
-                let iconUrl = fallbackUrl;
-                let iconStyle = fallbackStyle;
-                const domain = getAppDomain(appDisplay);
-
-                // If an app domain is found, use clearbit API
-                if (domain) {
-                    iconUrl = `https://logo.clearbit.com/${domain}`;
-                    // Add white background and padding so dark/transparent logos look perfect
-                    iconStyle = "padding: 6px; background: #fff; object-fit: contain;"; 
-                }
+                div.className = `txn-item ${item.status === 'pending' ? 'pending' : (item.direction === "IN" ? "in" : "out")}`;
+                const url = item.blob ? URL.createObjectURL(item.blob) : cloudSvg;
+                const isCloudItem = !item.blob;
 
                 div.addEventListener('click', (e) => {
                     if (div._swiping) return;
-                    openModal(item.id, item.text, !item.blob, item.blob);
+                    openModal(item.id, item.text, isCloudItem, item.blob);
                 });
 
                 let startX = 0;
@@ -863,23 +823,32 @@
                     setTimeout(() => div._swiping = false, 300);
                 }, {passive: true});
 
+                let nameDisplay = 'Unknown';
+                let dateDisplay = '';
+                let amountDisplay = '';
+                if (item.status === 'pending') {
+                    nameDisplay = '[Pending]';
+                } else if (item.text) {
+                    const fields = parseFields(item.text);
+                    nameDisplay = fields.name || 'Unknown';
+                    dateDisplay = fields.date || '';
+                    amountDisplay = fields.amount || '';
+                }
+
                 let subParts = [];
                 if (dateDisplay) subParts.push(`<span class="meta-label">Date:</span> ${dateDisplay}`);
+                if (amountDisplay) subParts.push(`<span class="meta-label">Amount:</span> ${amountDisplay}`);
                 const subText = subParts.length ? subParts.join('  •  ') : 'No details';
 
                 const timeTag = item.duration ? `<span>⏱️ ${item.duration}s</span>` : "";
                 const engineTag = item.engine ? `<span class="engine-tag">${item.engine}</span>` : "";
 
-                const amountColor = item.direction === "IN" ? "var(--neon-green)" : "var(--neon-red)";
-                const amountHtml = amountDisplay ? `<div class="txn-amount" style="color: ${amountColor};">${amountDisplay}</div>` : "";
-
                 div.innerHTML = `
-                    <img src="${iconUrl}" class="txn-thumb" style="${iconStyle}" onerror="this.onerror=null; this.src='${fallbackUrl}'; this.style.cssText='${fallbackStyle}';">
+                    <img src="${url}" class="txn-thumb" style="${isCloudItem ? 'padding: 12px;' : ''}">
                     <div class="txn-brief">
                         <span class="txn-title">${nameDisplay}</span>
                         <div class="txn-time">${subText} ${timeTag} ${engineTag}</div>
                     </div>
-                    ${amountHtml}
                 `;
                 list.appendChild(div);
             });
@@ -1117,6 +1086,7 @@
 
     async function saveEditedData() {
         if (!activeModalId) return;
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return;
@@ -1141,7 +1111,7 @@
                 category: document.getElementById('edit-category').value,
                 refId: document.getElementById('edit-ref').value
             },
-            sheetId: userSheetId,
+            sheetId: userSheetId, // Send Sheet ID directly
             email: userEmail,
         };
 
@@ -1223,6 +1193,7 @@
         };
     }
 
+    // ─── Single Unified Initialization Execution ────────────────────
     window.addEventListener('load', async () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('fetch-date').value = today;
