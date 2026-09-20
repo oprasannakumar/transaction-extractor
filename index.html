@@ -14,18 +14,6 @@
             --neon-red: #ff3131;
             --bg-dark: #0f172a;
             --glass-bg: rgba(255, 255, 255, 0.05);
-          .txn-amount {
-    font-size: 1.2rem;
-    font-weight: bold;
-    font-family: monospace;
-    margin-left: 12px;
-    white-space: nowrap;
-    flex-shrink: 0; /* Prevents the amount from wrapping or squishing */
-    text-align: right;
-}
-.txn-amount.in { color: var(--neon-green); }
-.txn-amount.out { color: var(--neon-red); }
-
             --glass-border: rgba(255, 255, 255, 0.1);
         }
 
@@ -113,11 +101,10 @@
         .txn-item.in { border-color: var(--neon-green); }
         .txn-item.out { border-color: var(--neon-red); }
 
-        .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;}
+        .txn-thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; margin-right: 15px; pointer-events: none; background: rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;}
         .txn-brief { flex: 1; text-align: left; font-family: monospace; display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
         .txn-title { font-size: 0.85rem; color: #e2e8f0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .txn-time { font-size: 0.65rem; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .txn-amount { font-size: 1.15rem; font-weight: bold; font-family: monospace; color: #f8fafc; margin-left: 12px; text-align: right; flex-shrink: 0; pointer-events: none; }
         .engine-tag { color: var(--neon-blue); border: 1px solid var(--neon-blue); padding: 1px 4px; border-radius: 4px; font-size: 0.6rem; }
         .meta-label { color: #64748b; font-weight: normal; }
 
@@ -286,29 +273,6 @@
         #profile-name { margin: 0; font-size: 1.5rem; color: #fff; text-transform: capitalize; font-weight: bold; }
         #profile-email { margin: 0; font-size: 0.9rem; color: #94a3b8; font-family: monospace; min-height: 1.2rem; }
         #auth-action-container { margin-top: 20px; width: 100%; display: flex; justify-content: center; }
-      .txn-amount {
-    font-size: 1.2rem;
-    font-weight: bold;
-    font-family: monospace;
-    margin-left: 12px;
-    white-space: nowrap;
-    flex-shrink: 0; /* Prevents the amount from wrapping or squishing */
-    text-align: right;
-}
-.txn-amount.in { color: var(--neon-green); }
-.txn-amount.out { color: var(--neon-red); }
- .txn-amount {
-    font-size: 1.2rem;
-    font-weight: bold;
-    font-family: monospace;
-    margin-left: 12px;
-    white-space: nowrap;
-    flex-shrink: 0; /* Prevents the amount from wrapping or squishing */
-    text-align: right;
-}
-.txn-amount.in { color: var(--neon-green); }
-.txn-amount.out { color: var(--neon-red); }
-
     </style>
 </head>
 <body>
@@ -413,7 +377,7 @@
 
     let userAccessToken = null;
     let userEmail = null;
-    let userSheetId = null;
+    let userSheetId = null; // --- NEW: Track the Sheet ID locally ---
 
     let activeModalId = null;
     let currentRawText = "";
@@ -502,41 +466,76 @@
         window.location.href = `${oauth2Endpoint}?${queryString}`;
     }
 
-    async function initializeSheet() {
-        if (!userAccessToken) {
-            showToast('No access token available for init.');
-            return;
-        }
-        try {
-            const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
-            });
-            
-            if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
-            
-            const initData = await initResp.json();
-            
-            if (initData.status === 'success' && initData.data && initData.data.sheetId) {
-                userSheetId = initData.data.sheetId;
-                localStorage.setItem('userSheetId', userSheetId);
-                
-                showToast('Sheet linked successfully!');
-                fetchFromCloud(); 
-            } else {
-                alert("Init Failed: " + (initData.data || JSON.stringify(initData)));
-            }
-        } catch (err) {
-            console.error('Cloudflare connection error:', err);
-            alert('Init Exception: ' + err.message);
-        }
+async function initializeSheet() {
+    if (!userAccessToken) {
+        showToast('No access token available for init.');
+        return;
     }
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+        });
+        
+        if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+        
+        const initData = await initResp.json();
+        
+        // Debug check to see exactly what the worker sent back
+        if (initData.status === 'success' && initData.data && initData.data.sheetId) {
+            userSheetId = initData.data.sheetId;
+            localStorage.setItem('userSheetId', userSheetId);
+            
+            showToast('Sheet linked successfully!');
+            fetchFromCloud(); 
+        } else {
+            // Alert the exact error from the worker payload
+            alert("Init Error: " + (initData.data || initData.message || JSON.stringify(initData)));
+        }
+    } catch (err) {
+        console.error('Cloudflare connection error:', err);
+        alert('Init Exception: ' + err.message);
+    }
+}
+
+   async function initializeSheet() {
+    if (!userAccessToken) {
+        showToast('No access token available for init.');
+        return;
+    }
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+        });
+        
+        if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+        
+        const initData = await initResp.json();
+        
+        // If successful, save the sheet ID
+        if (initData.status === 'success' && initData.data && initData.data.sheetId) {
+            userSheetId = initData.data.sheetId;
+            localStorage.setItem('userSheetId', userSheetId);
+            
+            showToast('Sheet linked successfully!');
+            fetchFromCloud(); 
+        } else {
+            // SHOW THE EXACT ERROR IF IT FAILS
+            alert("Init Failed: " + (initData.data || JSON.stringify(initData)));
+        }
+    } catch (err) {
+        console.error('Cloudflare connection error:', err);
+        alert('Init Exception: ' + err.message);
+    }
+}
 
     function signOut(showToastMsg = true) {
         userAccessToken = null;
         userEmail = null;
-        userSheetId = null;
+        userSheetId = null; // Clear local sheet ID state
         
         localStorage.removeItem('userAccessToken');
         localStorage.removeItem('userRefreshToken');
@@ -544,7 +543,7 @@
         localStorage.removeItem('userEmail');
         localStorage.removeItem('userName');
         localStorage.removeItem('userPicture');
-        localStorage.removeItem('userSheetId');
+        localStorage.removeItem('userSheetId'); // Remove from storage
         
         updateAuthUI(null);
         document.getElementById('history-list').innerHTML = '';
@@ -587,6 +586,7 @@
     }
 
     async function fetchFromCloud() {
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return;
@@ -606,7 +606,7 @@
                 body: JSON.stringify({
                     action: "fetch",
                     date: dateVal,
-                    sheetId: userSheetId,
+                    sheetId: userSheetId, // Send Sheet ID directly
                     email: userEmail,
                     existingRefIds: []
                 })
@@ -658,6 +658,7 @@
     }
 
     async function runExtraction(blob) {
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return null;
@@ -683,7 +684,7 @@
                         action: "extract",
                         image: base64,
                         model: model,
-                        sheetId: userSheetId,
+                        sheetId: userSheetId, // Send Sheet ID directly
                         email: userEmail
                     })
                 });
@@ -755,26 +756,29 @@
         });
         return fields;
     }
+function restoreSession() {
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedName = localStorage.getItem('userName');
+    const savedPic = localStorage.getItem('userPicture');
+    const savedSheetId = localStorage.getItem('userSheetId'); 
 
-    function restoreSession() {
-        const savedEmail = localStorage.getItem('userEmail');
-        const savedName = localStorage.getItem('userName');
-        const savedPic = localStorage.getItem('userPicture');
-        const savedSheetId = localStorage.getItem('userSheetId'); 
-
-        if (savedEmail && savedSheetId) {
-            userEmail = savedEmail;
-            userSheetId = savedSheetId; 
-            updateAuthUI(userEmail, savedName, savedPic);
-        } else if (savedEmail && localStorage.getItem('userAccessToken')) {
-            userEmail = savedEmail;
-            userAccessToken = localStorage.getItem('userAccessToken');
-            updateAuthUI(userEmail, savedName, savedPic);
-            initializeSheet();
-        } else {
-            updateAuthUI(null);
-        }
+    // As long as we have the Sheet ID and Email, the user is permanently logged in.
+    // We no longer care if the Access Token is expired or missing.
+    if (savedEmail && savedSheetId) {
+        userEmail = savedEmail;
+        userSheetId = savedSheetId; 
+        updateAuthUI(userEmail, savedName, savedPic);
+    } 
+    // Fallback: If they just logged in but the sheet ID hasn't been fetched yet
+    else if (savedEmail && localStorage.getItem('userAccessToken')) {
+        userEmail = savedEmail;
+        userAccessToken = localStorage.getItem('userAccessToken');
+        updateAuthUI(userEmail, savedName, savedPic);
+        initializeSheet();
+    } else {
+        updateAuthUI(null);
     }
+}
 
     async function renderHistory() {
         const db = await initDB();
@@ -831,19 +835,13 @@
                     amountDisplay = fields.amount || '';
                 }
 
-                                let subParts = [];
+                let subParts = [];
                 if (dateDisplay) subParts.push(`<span class="meta-label">Date:</span> ${dateDisplay}`);
-                // Amount is removed from subParts so it doesn't show in the small grey text anymore
-                
+                if (amountDisplay) subParts.push(`<span class="meta-label">Amount:</span> ${amountDisplay}`);
                 const subText = subParts.length ? subParts.join('  •  ') : 'No details';
 
                 const timeTag = item.duration ? `<span>⏱️ ${item.duration}s</span>` : "";
                 const engineTag = item.engine ? `<span class="engine-tag">${item.engine}</span>` : "";
-
-                // Generate a standalone, styled amount element
-                const amountHtml = amountDisplay ? 
-                    `<div class="txn-amount ${item.direction === 'IN' ? 'in' : 'out'}">${amountDisplay}</div>` 
-                    : "";
 
                 div.innerHTML = `
                     <img src="${url}" class="txn-thumb" style="${isCloudItem ? 'padding: 12px;' : ''}">
@@ -851,7 +849,6 @@
                         <span class="txn-title">${nameDisplay}</span>
                         <div class="txn-time">${subText} ${timeTag} ${engineTag}</div>
                     </div>
-                    ${amountHtml}
                 `;
                 list.appendChild(div);
             });
@@ -1023,7 +1020,7 @@
         document.getElementById('edit-txnId').value = data.txnId;
         document.getElementById('edit-imageMessage').value = data.imageMessage;
         document.getElementById('edit-amount').value = data.amount;
-        document.getElementById('edit-charges').value = data.charges;
+      document.getElementById('edit-charges').value = data.charges;
         document.getElementById('edit-category').value = data.category;
         document.getElementById('edit-ref').value = data.ref;
 
@@ -1089,6 +1086,7 @@
 
     async function saveEditedData() {
         if (!activeModalId) return;
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return;
@@ -1106,14 +1104,14 @@
                 txnId: document.getElementById('edit-txnId').value,
                 imageMessage: document.getElementById('edit-imageMessage').value,
                 amount: document.getElementById('edit-amount').value,
-                charges: parseFloat(document.getElementById('edit-charges').value) || 0,
+              charges: parseFloat(document.getElementById('edit-charges').value) || 0,
                 direction: formDataState.direction,
                 type: formDataState.type,
                 account: formDataState.account,
                 category: document.getElementById('edit-category').value,
                 refId: document.getElementById('edit-ref').value
             },
-            sheetId: userSheetId,
+            sheetId: userSheetId, // Send Sheet ID directly
             email: userEmail,
         };
 
@@ -1195,6 +1193,7 @@
         };
     }
 
+    // ─── Single Unified Initialization Execution ────────────────────
     window.addEventListener('load', async () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('fetch-date').value = today;
