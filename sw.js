@@ -9,22 +9,41 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Match POST requests sent to your app scope
   if (event.request.method === 'POST' && url.pathname.includes('/transaction-extractor/')) {
     event.respondWith((async () => {
       try {
         const formData = await event.request.formData();
-        const imageFile = formData.get('image');
+        
+        // Check all common field names or fallback to the first available file entry
+        let imageFile = formData.get('image') || formData.get('file') || formData.get('files');
+        if (!imageFile) {
+          for (const [key, value] of formData.entries()) {
+            if (value instanceof File || (value && value.type && value.type.startsWith('image/'))) {
+              imageFile = value;
+              break;
+            }
+          }
+        }
 
-        if (imageFile && imageFile.size > 0) {
-          const cache = await caches.open('shared-data');
+        if (imageFile) {
           const buffer = await imageFile.arrayBuffer();
           const mimeType = imageFile.type || 'image/jpeg';
+          const freshBlob = new Blob([buffer], { type: mimeType });
 
-          // Store with a relative URL matching the app origin and path
+          // 1. Post directly to any already-opened app windows (fixes the running app issue)
+          const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+          for (const client of allClients) {
+            client.postMessage({
+              action: 'PROCESS_SHARED_IMAGE',
+              blob: freshBlob
+            });
+          }
+
+          // 2. Also save to cache in case the app is launched cold
+          const cache = await caches.open('shared-data');
           await cache.put(
             new Request(`${self.registration.scope}shared-image-${Date.now()}`),
-            new Response(buffer, {
+            new Response(freshBlob, {
               headers: {
                 'Content-Type': mimeType,
                 'Content-Length': buffer.byteLength.toString()
@@ -36,10 +55,9 @@ self.addEventListener('fetch', (event) => {
         console.error('Share Target Error:', err);
       }
 
-      // Use the registration scope to build the absolute redirect URL
+      // Redirect to the main page
       const redirectUrl = new URL(self.registration.scope);
       redirectUrl.searchParams.set('shared', 'true');
-      
       return Response.redirect(redirectUrl.href, 303);
     })());
   }
