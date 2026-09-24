@@ -1,106 +1,194 @@
-/* ============================================================
-   Transaction Extractor — Service Worker
-   Handles the Web Share Target POST and stashes files in cache.
-   ============================================================ */
+const CACHE_NAME = 'shared-data-v2';
+const SHARED_IMAGE_KEY = '/shared-image';
 
-const SHARE_CACHE = 'shared-data-v2';
-const SHARE_ENDPOINT = '/transaction-extractor/share';
-const APP_ROOT = '/transaction-extractor/';
-const SW_VERSION = 'v4';
-
-/* ---------- Lifecycle ---------- */
-
-self.addEventListener('install', (event) => {
-  // Activate the new SW immediately instead of waiting for all
-  // clients to close. Without this, an updated SW can sit in the
-  // "waiting" state forever on an installed PWA, and the OLD,
-  // possibly broken handler keeps serving share POSTs.
-  self.skipWaiting();
+self.addEventListener('install', event => {
+    console.log('[SW] Installing...');
+    self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    // Drop every cache except the share cache (e.g. stale SW-versioned caches)
-    const keys = await caches.keys();
-    await Promise.all(
-      keys.filter((k) => k !== SHARE_CACHE).map((k) => caches.delete(k))
+self.addEventListener('activate', event => {
+    console.log('[SW] Activating...');
+
+    event.waitUntil(
+        (async () => {
+            await self.clients.claim();
+
+            // Remove old shared-data cache versions
+            const cacheNames = await caches.keys();
+
+            await Promise.all(
+                cacheNames
+                    .filter(name => name.startsWith('shared-data') && name !== CACHE_NAME)
+                    .map(name => caches.delete(name))
+            );
+
+            console.log('[SW] Activated');
+        })()
     );
-
-    // Take control of already-open pages right now.
-    await self.clients.claim();
-    console.log('[SW] activated', SW_VERSION);
-  })());
 });
 
-/* ---------- Fetch ---------- */
+self.addEventListener('fetch', event => {
 
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  const url = new URL(req.url);
+    const request = event.request;
 
-  // Only intercept the share-target POST. Everything else falls
-  // through to the network / HTTP cache untouched.
-  if (req.method === 'POST' && url.pathname.startsWith(SHARE_ENDPOINT)) {
-    event.respondWith(handleShare(req));
-  }
-});
+    /*
+     * Handle Android Web Share Target
+     */
+    if (
+        request.method === 'POST' &&
+        new URL(request.url).pathname === '/transaction-extractor/'
+    ) {
 
-/* ---------- Share handler ---------- */
+        event.respondWith(handleShareTarget(request));
 
-async function handleShare(request) {
-  try {
-    const formData = await request.formData();
-
-    // getAll so multi-image shares aren't silently truncated.
-    const files = formData
-      .getAll('image')
-      .filter((f) => f && typeof f === 'object' && f.size > 0);
-
-    const sharedText = (formData.get('text') || '').toString().trim();
-    const sharedTitle = (formData.get('title') || '').toString().trim();
-
-    const cache = await caches.open(SHARE_CACHE);
-
-    // Wipe the previous batch so a failed extraction from last time
-    // can never be confused with the share the user just made.
-    const stale = await cache.keys();
-    await Promise.all(stale.map((k) => cache.delete(k)));
-
-    if (!files.length && !sharedText) {
-      // Nothing usable arrived — bounce back with a flag the page can read.
-      return Response.redirect(APP_ROOT + '?shared_error=empty', 303);
+        return;
     }
+});
 
-    const stamp = Date.now();
 
-    await Promise.all(
-      files.map((file, i) =>
-        cache.put(
-          new Request(`${APP_ROOT}shared-file-${stamp}-${i}`),
-          new Response(file, {
-            headers: {
-              'Content-Type': file.type || 'application/octet-stream',
-              'X-Shared-Name': encodeURIComponent(file.name || `image-${i}`)
+async function handleShareTarget(request) {
+
+    try {
+
+        console.log('[SW] Share request received');
+
+        /*
+         * Read multipart/form-data
+         */
+        const formData = await request.formData();
+
+        /*
+         * Debug all received fields
+         */
+        for (const [key, value] of formData.entries()) {
+
+            if (value instanceof File) {
+
+                console.log(
+                    '[SW] File received:',
+                    key,
+                    value.name,
+                    value.type,
+                    value.size
+                );
+
+            } else {
+
+                console.log(
+                    '[SW] Field received:',
+                    key,
+                    value
+                );
             }
-          })
-        )
-      )
-    );
+        }
 
-    if (sharedText || sharedTitle) {
-      await cache.put(
-        new Request(`${APP_ROOT}shared-text-${stamp}`),
-        new Response(JSON.stringify({ title: sharedTitle, text: sharedText }), {
-          headers: { 'Content-Type': 'application/json' }
-        })
-      );
+
+        /*
+         * Get shared image
+         */
+        let imageFile = formData.get('image');
+
+
+        /*
+         * Some browsers may provide the first image
+         * under another field.
+         */
+        if (!(imageFile instanceof File) || imageFile.size === 0) {
+
+            console.warn('[SW] "image" field missing.');
+
+            for (const [key, value] of formData.entries()) {
+
+                if (
+                    value instanceof File &&
+                    value.size > 0 &&
+                    value.type.startsWith('image/')
+                ) {
+
+                    console.log(
+                        '[SW] Using fallback image field:',
+                        key
+                    );
+
+                    imageFile = value;
+                    break;
+                }
+            }
+        }
+
+
+        /*
+         * No image received
+         */
+        if (
+            !(imageFile instanceof File) ||
+            imageFile.size === 0
+        ) {
+
+            console.error('[SW] No valid image received.');
+
+            return Response.redirect(
+                '/transaction-extractor/?shared=error',
+                303
+            );
+        }
+
+
+        console.log(
+            '[SW] Saving image:',
+            imageFile.name,
+            imageFile.type,
+            imageFile.size
+        );
+
+
+        /*
+         * Open cache
+         */
+        const cache = await caches.open(CACHE_NAME);
+
+
+        /*
+         * Delete any previous shared image
+         */
+        await cache.delete(SHARED_IMAGE_KEY);
+
+
+        /*
+         * Store image
+         */
+        await cache.put(
+            SHARED_IMAGE_KEY,
+            new Response(imageFile, {
+                headers: {
+                    'Content-Type': imageFile.type || 'image/jpeg',
+                    'Content-Length': String(imageFile.size)
+                }
+            })
+        );
+
+
+        console.log('[SW] Image stored successfully');
+
+
+        /*
+         * Redirect to application
+         */
+        return Response.redirect(
+            '/transaction-extractor/?shared=1',
+            303
+        );
+
+    } catch (error) {
+
+        console.error(
+            '[SW] Share handling failed:',
+            error
+        );
+
+        return Response.redirect(
+            '/transaction-extractor/?shared=error',
+            303
+        );
     }
-
-    // 303 forces the browser to follow up with a GET, so the page
-    // loads normally instead of re-POSTing on refresh.
-    return Response.redirect(APP_ROOT + '?shared=1', 303);
-  } catch (err) {
-    console.error('[SW] share handling failed:', err);
-    return Response.redirect(APP_ROOT + '?shared_error=1', 303);
-  }
 }
