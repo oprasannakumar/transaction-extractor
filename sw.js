@@ -8,7 +8,7 @@ self.addEventListener('fetch', (event) => {
       const imageFile = formData.get('image');
       
       // Open a cache and store the image blob
-      const cache = await caches.open('shared-data-v10');
+      const cache = await caches.open('shared-data');
       await cache.put('shared-image', new Response(imageFile));
 
       // Redirect the user to the main page with a query parameter
