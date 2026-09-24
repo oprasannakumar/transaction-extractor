@@ -3,7 +3,7 @@
    Handles the Web Share Target POST and stashes files in cache.
    ============================================================ */
 
-const SHARE_CACHE = 'shared-data';
+const SHARE_CACHE = 'shared-data-v2';
 const SHARE_ENDPOINT = '/transaction-extractor/share';
 const APP_ROOT = '/transaction-extractor/';
 const SW_VERSION = 'v4';
