@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -377,7 +376,7 @@
 
     let userAccessToken = null;
     let userEmail = null;
-    let userSheetId = null;
+    let userSheetId = null; // --- NEW: Track the Sheet ID locally ---
 
     let activeModalId = null;
     let currentRawText = "";
@@ -466,41 +465,43 @@
         window.location.href = `${oauth2Endpoint}?${queryString}`;
     }
 
-    async function initializeSheet() {
-        if (!userAccessToken) {
-            showToast('No access token available for init.');
-            return;
-        }
-        try {
-            const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
-            });
-            
-            if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
-            
-            const initData = await initResp.json();
-            
-            if (initData.status === 'success' && initData.data && initData.data.sheetId) {
-                userSheetId = initData.data.sheetId;
-                localStorage.setItem('userSheetId', userSheetId);
-                
-                showToast('Sheet linked successfully!');
-                fetchFromCloud(); 
-            } else {
-                alert("Init Failed: " + (initData.data || JSON.stringify(initData)));
-            }
-        } catch (err) {
-            console.error('Cloudflare connection error:', err);
-            alert('Init Exception: ' + err.message);
-        }
+   async function initializeSheet() {
+    if (!userAccessToken) {
+        showToast('No access token available for init.');
+        return;
     }
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+        });
+        
+        if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+        
+        const initData = await initResp.json();
+        
+        // If successful, save the sheet ID
+        if (initData.status === 'success' && initData.data && initData.data.sheetId) {
+            userSheetId = initData.data.sheetId;
+            localStorage.setItem('userSheetId', userSheetId);
+            
+            showToast('Sheet linked successfully!');
+            fetchFromCloud(); 
+        } else {
+            // SHOW THE EXACT ERROR IF IT FAILS
+            alert("Init Failed: " + (initData.data || JSON.stringify(initData)));
+        }
+    } catch (err) {
+        console.error('Cloudflare connection error:', err);
+        alert('Init Exception: ' + err.message);
+    }
+}
 
     function signOut(showToastMsg = true) {
         userAccessToken = null;
         userEmail = null;
-        userSheetId = null;
+        userSheetId = null; // Clear local sheet ID state
         
         localStorage.removeItem('userAccessToken');
         localStorage.removeItem('userRefreshToken');
@@ -508,7 +509,7 @@
         localStorage.removeItem('userEmail');
         localStorage.removeItem('userName');
         localStorage.removeItem('userPicture');
-        localStorage.removeItem('userSheetId');
+        localStorage.removeItem('userSheetId'); // Remove from storage
         
         updateAuthUI(null);
         document.getElementById('history-list').innerHTML = '';
@@ -551,6 +552,7 @@
     }
 
     async function fetchFromCloud() {
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return;
@@ -570,7 +572,7 @@
                 body: JSON.stringify({
                     action: "fetch",
                     date: dateVal,
-                    sheetId: userSheetId,
+                    sheetId: userSheetId, // Send Sheet ID directly
                     email: userEmail,
                     existingRefIds: []
                 })
@@ -622,6 +624,7 @@
     }
 
     async function runExtraction(blob) {
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return null;
@@ -647,7 +650,7 @@
                         action: "extract",
                         image: base64,
                         model: model,
-                        sheetId: userSheetId,
+                        sheetId: userSheetId, // Send Sheet ID directly
                         email: userEmail
                     })
                 });
@@ -698,7 +701,7 @@
     }
 
     function parseFields(text) {
-        const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', charges: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
+        const fields = { date: '', app: '', name: '', txnId: '', imageMessage: '', amount: '', direction: 'IN', type: 'UPI', account: '', category: '', ref: '' };
         if (!text || text === "--- PENDING ---") return fields;
         text.split('\n').forEach(line => {
             if (line.includes('📅 Date:')) fields.date = line.replace('📅 Date:', '').trim();
@@ -719,27 +722,29 @@
         });
         return fields;
     }
+function restoreSession() {
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedName = localStorage.getItem('userName');
+    const savedPic = localStorage.getItem('userPicture');
+    const savedSheetId = localStorage.getItem('userSheetId'); 
 
-    function restoreSession() {
-        const savedEmail = localStorage.getItem('userEmail');
-        const savedName = localStorage.getItem('userName');
-        const savedPic = localStorage.getItem('userPicture');
-        const savedSheetId = localStorage.getItem('userSheetId'); 
-
-        if (savedEmail && savedSheetId) {
-            userEmail = savedEmail;
-            userSheetId = savedSheetId; 
-            updateAuthUI(userEmail, savedName, savedPic);
-        } 
-        else if (savedEmail && localStorage.getItem('userAccessToken')) {
-            userEmail = savedEmail;
-            userAccessToken = localStorage.getItem('userAccessToken');
-            updateAuthUI(userEmail, savedName, savedPic);
-            initializeSheet();
-        } else {
-            updateAuthUI(null);
-        }
+    // As long as we have the Sheet ID and Email, the user is permanently logged in.
+    // We no longer care if the Access Token is expired or missing.
+    if (savedEmail && savedSheetId) {
+        userEmail = savedEmail;
+        userSheetId = savedSheetId; 
+        updateAuthUI(userEmail, savedName, savedPic);
+    } 
+    // Fallback: If they just logged in but the sheet ID hasn't been fetched yet
+    else if (savedEmail && localStorage.getItem('userAccessToken')) {
+        userEmail = savedEmail;
+        userAccessToken = localStorage.getItem('userAccessToken');
+        updateAuthUI(userEmail, savedName, savedPic);
+        initializeSheet();
+    } else {
+        updateAuthUI(null);
     }
+}
 
     async function renderHistory() {
         const db = await initDB();
@@ -981,7 +986,7 @@
         document.getElementById('edit-txnId').value = data.txnId;
         document.getElementById('edit-imageMessage').value = data.imageMessage;
         document.getElementById('edit-amount').value = data.amount;
-        document.getElementById('edit-charges').value = data.charges;
+      document.getElementById('edit-charges').value = data.charges;
         document.getElementById('edit-category').value = data.category;
         document.getElementById('edit-ref').value = data.ref;
 
@@ -1047,6 +1052,7 @@
 
     async function saveEditedData() {
         if (!activeModalId) return;
+        // --- NEW: Check for sheet ID, not Access Token ---
         if (!userSheetId) {
             showToast('Please sign in to link your sheet first');
             return;
@@ -1064,14 +1070,14 @@
                 txnId: document.getElementById('edit-txnId').value,
                 imageMessage: document.getElementById('edit-imageMessage').value,
                 amount: document.getElementById('edit-amount').value,
-                charges: parseFloat(document.getElementById('edit-charges').value) || 0,
+              charges: parseFloat(document.getElementById('edit-charges').value) || 0,
                 direction: formDataState.direction,
                 type: formDataState.type,
                 account: formDataState.account,
                 category: document.getElementById('edit-category').value,
                 refId: document.getElementById('edit-ref').value
             },
-            sheetId: userSheetId,
+            sheetId: userSheetId, // Send Sheet ID directly
             email: userEmail,
         };
 
@@ -1153,105 +1159,7 @@
         };
     }
 
-    /* ============================================================
-       SHARED PAYLOAD HANDLING
-       ============================================================ */
-
-    // The SW's cache.put() may not have resolved by the time the page
-    // loads. Poll briefly instead of assuming the cache is ready.
-    async function waitForSharedEntries(cache, timeout = 3000) {
-        const start = Date.now();
-        while (Date.now() - start < timeout) {
-            const keys = await cache.keys();
-            if (keys.length) return keys;
-            await new Promise((r) => setTimeout(r, 120));
-        }
-        return [];
-    }
-
-    async function handleSharedPayloads() {
-        const statusEl = document.getElementById('status');
-        const cache = await caches.open('shared-data');
-        const keys = await waitForSharedEntries(cache);
-
-        if (!keys.length) {
-            statusEl.innerText = "SHARE RECEIVED — NO PAYLOAD FOUND";
-            setTimeout(() => { statusEl.innerText = "System Online"; }, 4000);
-            return;
-        }
-
-        const mode = localStorage.getItem('txnVaultMode') || 'standard';
-        let processed = 0;
-
-        for (const key of keys) {
-            let blob = null;
-            let resp = null;
-
-            try {
-                resp = await cache.match(key);
-                if (resp) blob = await resp.blob();
-            } catch (e) {
-                console.warn('Cache read failed for', key.url, e);
-            }
-
-            // Empty / broken entry — discard and move on.
-            if (!blob || blob.size === 0) {
-                await cache.delete(key);
-                continue;
-            }
-
-            // Non-image payload (title/text share)
-            const ctype = resp.headers.get('Content-Type') || '';
-            if (!ctype.startsWith('image/')) {
-                if (ctype.includes('application/json')) {
-                    try {
-                        const meta = JSON.parse(await blob.text());
-                        if (meta.text) showToast('Shared: ' + meta.text.slice(0, 40));
-                    } catch (_) { /* ignore */ }
-                }
-                await cache.delete(key);
-                continue;
-            }
-
-            // ---- BATCH MODE: queue it, extract later ----
-            if (mode === 'batch') {
-                await saveTxn(blob, "", "", 'pending', null, null, false);
-                await cache.delete(key);
-                processed++;
-                continue;
-            }
-
-            // ---- STANDARD MODE: extract now ----
-            document.getElementById('p-cont').style.display = 'block';
-            document.getElementById('preview').src = URL.createObjectURL(blob);
-
-            const res = await runExtraction(blob);
-
-            if (res) {
-                await saveTxn(
-                    blob, res.formatted, res.direction,
-                    'success', res.duration, res.engine, false
-                );
-                await cache.delete(key);   // delete ONLY on success
-                processed++;
-            } else {
-                // Keep the blob cached so the next app launch retries it.
-                showToast('Extraction failed — image kept for retry');
-            }
-
-            document.getElementById('p-cont').style.display = 'none';
-        }
-
-        if (processed === 0 && mode === 'standard') {
-            statusEl.innerText = "NO IMAGE EXTRACTED";
-            setTimeout(() => { statusEl.innerText = "System Online"; }, 3000);
-        }
-    }
-
-    /* ============================================================
-       BOOT
-       ============================================================ */
-
+    // ─── Single Unified Initialization Execution ────────────────────
     window.addEventListener('load', async () => {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('fetch-date').value = today;
@@ -1260,7 +1168,6 @@
         const urlParams = new URLSearchParams(window.location.search);
         const authCode = urlParams.get('code');
 
-        /* ---------- OAuth callback ---------- */
         if (authCode) {
             window.history.replaceState({}, document.title, window.location.pathname);
             showToast("Authenticating with Cloudflare...");
@@ -1276,32 +1183,32 @@
                     })
                 });
                 const result = await resp.json();
-
+                
                 if (result.status === 'success' && result.data.access_token) {
                     userAccessToken = result.data.access_token;
+                    
                     localStorage.setItem('userAccessToken', userAccessToken);
-
                     if (result.data.refresh_token) {
                         localStorage.setItem('userRefreshToken', result.data.refresh_token);
                     }
-
-                    const userInfoResp = await fetch(
-                        'https://www.googleapis.com/oauth2/v3/userinfo',
-                        { headers: { Authorization: `Bearer ${userAccessToken}` } }
-                    );
+                    
+                    const userInfoResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: `Bearer ${userAccessToken}` }
+                    });
                     const userInfo = await userInfoResp.json();
                     userEmail = userInfo.email;
-
+                    
                     localStorage.setItem('userEmail', userEmail);
                     localStorage.setItem('userName', userInfo.name || '');
                     localStorage.setItem('userPicture', userInfo.picture || '');
-
+                    
                     updateAuthUI(userEmail, userInfo.name, userInfo.picture);
                     showToast('Signed in persistently!');
                     initializeSheet();
                     document.getElementById('profile-overlay').style.display = 'none';
                 } else {
                     alert("Auth Error: " + (result.data || "Token exchange failed"));
+                    throw new Error(result.data || "Token exchange failed");
                 }
             } catch (err) {
                 console.error('Auth Exchange Error:', err);
@@ -1311,7 +1218,6 @@
             restoreSession();
         }
 
-        /* ---------- Daily cache cleanup ---------- */
         const db = await initDB();
         const cleanTx = db.transaction(STORE_NAME, "readwrite");
         const cleanStore = cleanTx.objectStore(STORE_NAME);
@@ -1319,57 +1225,147 @@
         cleanReq.onsuccess = () => {
             const now = Date.now();
             const oneDay = 24 * 60 * 60 * 1000;
-            cleanReq.result.forEach((item) => {
-                if (now - item.timestamp > oneDay) cleanStore.delete(item.id);
-            });
+            cleanReq.result.forEach(item => { if (now - item.timestamp > oneDay) cleanStore.delete(item.id); });
         };
 
-        /* ---------- Shared payload ---------- */
         if (urlParams.has('shared')) {
-            // Clear the flag FIRST so a mid-loop exception can't cause
-            // a re-run against an empty cache on refresh.
-            window.history.replaceState({}, '', window.location.pathname);
-            await handleSharedPayloads();
-            renderHistory();
-            checkPending();
-        } else if (urlParams.has('shared_error')) {
-            window.history.replaceState({}, '', window.location.pathname);
-            showToast('Share failed — nothing received');
-            renderHistory();
-            checkPending();
+
+    const mode = localStorage.getItem('txnVaultMode') || 'standard';
+
+    try {
+
+        const cache = await caches.open('shared-data-v2');
+
+        const response = await cache.match('/shared-image');
+
+        if (!response) {
+
+            console.error('[APP] No shared image found in cache.');
+
+            showToast('No shared image found');
+
+            document.getElementById('status').innerText =
+                'SHARED IMAGE NOT FOUND';
+
         } else {
+
+            const blob = await response.blob();
+
+            console.log(
+                '[APP] Shared image received:',
+                blob.type,
+                blob.size
+            );
+
+
+            /*
+             * Delete after successfully retrieving it
+             */
+            await cache.delete('/shared-image');
+
+
+            /*
+             * Make sure the received data is actually an image
+             */
+            if (!blob || blob.size === 0) {
+
+                throw new Error('Received image is empty');
+
+            }
+
+
+            if (mode === 'batch') {
+
+                await saveTxn(
+                    blob,
+                    "",
+                    "",
+                    'pending',
+                    null,
+                    null,
+                    false
+                );
+
+            } else {
+
+                const preview = document.getElementById('preview');
+
+                const previewUrl = URL.createObjectURL(blob);
+
+                preview.src = previewUrl;
+
+                document.getElementById('p-cont').style.display = 'block';
+
+
+                /*
+                 * Wait until preview loads
+                 */
+                await new Promise(resolve => {
+
+                    preview.onload = resolve;
+                    preview.onerror = resolve;
+
+                });
+
+
+                const res = await runExtraction(blob);
+
+
+                if (res) {
+
+                    await saveTxn(
+                        blob,
+                        res.formatted,
+                        res.direction,
+                        'success',
+                        res.duration,
+                        res.engine,
+                        false
+                    );
+
+                }
+
+
+                URL.revokeObjectURL(previewUrl);
+
+                document.getElementById('p-cont').style.display = 'none';
+            }
+        }
+
+    } catch (error) {
+
+        console.error(
+            '[APP] Shared image processing failed:',
+            error
+        );
+
+        document.getElementById('status').innerText =
+            'IMAGE RECEIVE FAILED';
+
+        showToast('Failed to receive image');
+
+    }
+
+
+    window.history.replaceState(
+        {},
+        '',
+        window.location.pathname
+    );
+
+    renderHistory();
+    checkPending();
+
+} else {
             renderHistory();
-            checkPending();
         }
     });
 
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js')
-                .then(reg => {
-                    console.log('Service Worker Registered!', reg);
-                    // If a new SW is sitting in "waiting", activate it now.
-                    if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                    reg.addEventListener('updatefound', () => {
-                        const sw = reg.installing;
-                        if (!sw) return;
-                        sw.addEventListener('statechange', () => {
-                            if (sw.state === 'installed' && navigator.serviceWorker.controller) {
-                                sw.postMessage({ type: 'SKIP_WAITING' });
-                            }
-                        });
-                    });
-                })
+                .then(reg => console.log('Service Worker Registered!', reg))
                 .catch(err => console.error('Service Worker Registration Failed!', err));
-
-            // Reload once when a new SW takes control so the fresh
-            // page (with the new share handling) is the one serving.
-            let refreshing = false;
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (refreshing) return;
-                refreshing = true;
-                window.location.reload();
-            });
         });
     }
 </script>
