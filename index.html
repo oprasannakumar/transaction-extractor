@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -464,6 +465,39 @@
         showToast("Redirecting to Google...");
         window.location.href = `${oauth2Endpoint}?${queryString}`;
     }
+
+async function initializeSheet() {
+    if (!userAccessToken) {
+        showToast('No access token available for init.');
+        return;
+    }
+    try {
+        const initResp = await fetch(CLOUDFLARE_WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'init', accessToken: userAccessToken, email: userEmail }),
+        });
+        
+        if (!initResp.ok) throw new Error(`Server returned status ${initResp.status}`);
+        
+        const initData = await initResp.json();
+        
+        // Debug check to see exactly what the worker sent back
+        if (initData.status === 'success' && initData.data && initData.data.sheetId) {
+            userSheetId = initData.data.sheetId;
+            localStorage.setItem('userSheetId', userSheetId);
+            
+            showToast('Sheet linked successfully!');
+            fetchFromCloud(); 
+        } else {
+            // Alert the exact error from the worker payload
+            alert("Init Error: " + (initData.data || initData.message || JSON.stringify(initData)));
+        }
+    } catch (err) {
+        console.error('Cloudflare connection error:', err);
+        alert('Init Exception: ' + err.message);
+    }
+}
 
    async function initializeSheet() {
     if (!userAccessToken) {
@@ -1229,141 +1263,36 @@ function restoreSession() {
         };
 
         if (urlParams.has('shared')) {
+            const cache = await caches.open('shared-data');
+            const keys = await cache.keys();
+            const mode = localStorage.getItem('txnVaultMode') || 'standard';
 
-    const mode = localStorage.getItem('txnVaultMode') || 'standard';
+            for (let key of keys) {
+                const resp = await cache.match(key);
+                const blob = await resp.blob();
+                await cache.delete(key);
 
-    try {
-
-        const cache = await caches.open('shared-data-v2');
-
-        const response = await cache.match('/shared-image');
-
-        if (!response) {
-
-            console.error('[APP] No shared image found in cache.');
-
-            showToast('No shared image found');
-
-            document.getElementById('status').innerText =
-                'SHARED IMAGE NOT FOUND';
-
-        } else {
-
-            const blob = await response.blob();
-
-            console.log(
-                '[APP] Shared image received:',
-                blob.type,
-                blob.size
-            );
-
-
-            /*
-             * Delete after successfully retrieving it
-             */
-            await cache.delete('/shared-image');
-
-
-            /*
-             * Make sure the received data is actually an image
-             */
-            if (!blob || blob.size === 0) {
-
-                throw new Error('Received image is empty');
-
-            }
-
-
-            if (mode === 'batch') {
-
-                await saveTxn(
-                    blob,
-                    "",
-                    "",
-                    'pending',
-                    null,
-                    null,
-                    false
-                );
-
-            } else {
-
-                const preview = document.getElementById('preview');
-
-                const previewUrl = URL.createObjectURL(blob);
-
-                preview.src = previewUrl;
-
-                document.getElementById('p-cont').style.display = 'block';
-
-
-                /*
-                 * Wait until preview loads
-                 */
-                await new Promise(resolve => {
-
-                    preview.onload = resolve;
-                    preview.onerror = resolve;
-
-                });
-
-
-                const res = await runExtraction(blob);
-
-
-                if (res) {
-
-                    await saveTxn(
-                        blob,
-                        res.formatted,
-                        res.direction,
-                        'success',
-                        res.duration,
-                        res.engine,
-                        false
-                    );
-
+                if (mode === 'batch') {
+                    await saveTxn(blob, "", "", 'pending', null, null, false);
+                } else {
+                    document.getElementById('p-cont').style.display = 'block';
+                    document.getElementById('preview').src = URL.createObjectURL(blob);
+                    const res = await runExtraction(blob);
+                    if (res) await saveTxn(blob, res.formatted, res.direction, 'success', res.duration, res.engine, false);
+                    document.getElementById('p-cont').style.display = 'none';
                 }
-
-
-                URL.revokeObjectURL(previewUrl);
-
-                document.getElementById('p-cont').style.display = 'none';
             }
-        }
-
-    } catch (error) {
-
-        console.error(
-            '[APP] Shared image processing failed:',
-            error
-        );
-
-        document.getElementById('status').innerText =
-            'IMAGE RECEIVE FAILED';
-
-        showToast('Failed to receive image');
-
-    }
-
-
-    window.history.replaceState(
-        {},
-        '',
-        window.location.pathname
-    );
-
-    renderHistory();
-    checkPending();
-
-} else {
+            window.history.replaceState({}, '', window.location.pathname);
+            renderHistory();
+            checkPending();
+        } else {
             renderHistory();
         }
     });
 
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register(     '/transaction-extractor/sw.js',     {         scope: '/transaction-extractor/'     } ) .then(reg => {      console.log(         '[SW] Registered:',         reg.scope     );      /*      * Ask an already-installed worker to update.      */     reg.update();  }) .catch(err => {      console.error(         '[SW] Registration failed:',         err     );  });
+            navigator.serviceWorker.register('./sw.js')
                 .then(reg => console.log('Service Worker Registered!', reg))
                 .catch(err => console.error('Service Worker Registration Failed!', err));
         });
