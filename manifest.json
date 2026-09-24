@@ -4,35 +4,26 @@
   "start_url": "/transaction-extractor/",
   "scope": "/transaction-extractor/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#00d2ff",
+  "background_color": "#ffffff",
+  "theme_color": "#00D2FF66",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/1043/1043323.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "https://cdn-icons-png.flaticon.com/512/1043/1043323.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     },
     {
       "src": "https://cdn-icons-png.flaticon.com/192/1043/1043323.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     }
   ],
   "share_target": {
-    "action": "/transaction-extractor/share",
+    "action": "/transaction-extractor/",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
-      "title": "title",
-      "text": "text",
       "files": [
         {
           "name": "image",
